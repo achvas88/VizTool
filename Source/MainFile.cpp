@@ -25,11 +25,6 @@
 #include "OSGGraphics2D.h"
 #include "OSGLookAndFeelManager.h"
 
-#include <OSGPlainDocument.h>
-#include <OSGElement.h>
-#include <OSGTextFileHandler.h>
-#include <OSGTextEditor.h>
-
 // 03TextDomArea Headers
 #include "OSGLayers.h"
 #include "OSGButton.h"
@@ -44,6 +39,11 @@
 #include "OSGLineBorder.h"
 #include "OSGTextDomLayoutManager.h"
 #include "OSGGlyphView.h"
+#include "OSGSplitPanel.h"
+#include "OSGBorderLayout.h"
+#include "OSGBorderLayoutConstraints.h"
+
+#include "OSGTextEditor.h"
 
 // Activate the OpenSG namespace
 OSG_USING_NAMESPACE
@@ -54,14 +54,14 @@ void reshape(Vec2f Size, SimpleSceneManager *mgr);
 
 // Create a class to allow for the use of the Ctrl+q
 void keyTyped(KeyEventDetails* const details,
-              TextEditor* const theTextEditor)
+			TextEditor* const theTextEditor)
 {
     if(details->getKey() == KeyEventDetails::KEY_Q && details->getModifiers() &
        KeyEventDetails::KEY_MODIFIER_COMMAND)
     {
         dynamic_cast<WindowEventProducer*>(details->getSource())->closeWindow();
     }
-    else if(details->getKey() == KeyEventDetails::KEY_1 && details->getModifiers() & KeyEventDetails::KEY_MODIFIER_COMMAND)
+	 else if(details->getKey() == KeyEventDetails::KEY_1 && details->getModifiers() & KeyEventDetails::KEY_MODIFIER_COMMAND)
     {
        theTextEditor->setClipboardVisible(!theTextEditor->getClipboardVisible());
     }
@@ -73,7 +73,7 @@ void keyTyped(KeyEventDetails* const details,
 
 void handleLoadButtonAction(ActionEventDetails* const details,
                             WindowEventProducer* const TutorialWindow,
-                            TextEditor* const theTextEditor)
+							TextEditor* const theTextEditor)
 {
 	std::vector<WindowEventProducer::FileDialogFilter> Filters;
 	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
@@ -92,25 +92,27 @@ void handleLoadButtonAction(ActionEventDetails* const details,
     }
 }
 
-void handleSaveButtonAction(ActionEventDetails* const details,
-                            WindowEventProducer* const TutorialWindow,
-                            TextEditor* const theTextEditor)
-{
-	std::vector<WindowEventProducer::FileDialogFilter> Filters;
-	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
-	Filters.push_back(WindowEventProducer::FileDialogFilter("Lua Files","lua"));
+//
+//void handleSaveButtonAction(ActionEventDetails* const details,
+//                            WindowEventProducer* const TutorialWindow,
+//                            TextEditor* const theTextEditor)
+//{
+//	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+//	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
+//	Filters.push_back(WindowEventProducer::FileDialogFilter("Lua Files","lua"));
+//
+//	BoostPath SavePath = TutorialWindow->saveFileDialog("Save File Window",
+//														Filters,
+//														std::string("newFile.lua"),
+//														BoostPath(".."),
+//														true);
+//	if(SavePath.string() != "")
+//    {
+//	    theTextEditor->saveFile(SavePath);
+//    }
+//
+//}
 
-	BoostPath SavePath = TutorialWindow->saveFileDialog("Save File Window",
-														Filters,
-														std::string("newFile.lua"),
-														BoostPath(".."),
-														true);
-	if(SavePath.string() != "")
-    {
-	    theTextEditor->saveFile(SavePath);
-    }
-
-}
 
 int main(int argc, char **argv)
 {
@@ -131,12 +133,12 @@ int main(int argc, char **argv)
 
 
         // Make Torus Node (creates Torus in background of scene)
-        NodeRefPtr TorusGeometryNode = makeTorus(.5, 2, 16, 16);
+        //NodeRefPtr TorusGeometryNode = makeTorus(.5, 2, 16, 16);
 
         // Make Main Scene Node and add the Torus
         NodeRefPtr scene = Node::create();
         scene->setCore(Group::create());
-        scene->addChild(TorusGeometryNode);
+        //scene->addChild(TorusGeometryNode);
 
         // Create the Graphics
         GraphicsRefPtr TutorialGraphics = Graphics2D::create();
@@ -144,21 +146,21 @@ int main(int argc, char **argv)
         // Initialize the LookAndFeelManager to enable default settings
         LookAndFeelManager::the()->getLookAndFeel()->init();
 
-
-
-	    ColorLayerRefPtr ExamplePanelBackground1 = ColorLayer::create();
+			    
+		ColorLayerRefPtr ExamplePanelBackground1 = ColorLayer::create();
         ExamplePanelBackground1->setColor(Color4f(0.0,0.0,0.0,1.0));
 
 	    LineBorderRefPtr ExamplePanelBorder1 = LineBorder::create();
         ExamplePanelBorder1->setColor(Color4f(0.9, 0.9, 0.9, 1.0));
         ExamplePanelBorder1->setWidth(3);
-
-	    TextEditorRefPtr theTextEditor = TextEditor::create();
-	    theTextEditor->setPreferredSize(Vec2f(600,400));
+				
+		TextEditorRefPtr theTextEditor = TextEditor::create();
+	    theTextEditor->setPreferredSize(Vec2f(200,200));
         theTextEditor->setBackgrounds(ExamplePanelBackground1);
         theTextEditor->setBorders(ExamplePanelBorder1);
         
-        ButtonRefPtr LoadButton = Button::create();
+   
+	    ButtonRefPtr LoadButton = Button::create();
 
 	    LoadButton->setMinSize(Vec2f(50, 25));
         LoadButton->setMaxSize(Vec2f(200, 100));
@@ -166,38 +168,67 @@ int main(int argc, char **argv)
         LoadButton->setToolTipText("Click to open a file browser window");
         LoadButton->setText("Load File");
 
-        LoadButton->connectActionPerformed(boost::bind(handleLoadButtonAction, _1, TutorialWindow.get(), theTextEditor.get()));
+		LoadButton->connectActionPerformed(boost::bind(handleLoadButtonAction, _1, TutorialWindow.get(), theTextEditor.get()));
+
+	
+		FlowLayoutRefPtr PanelFlowLayout = OSG::FlowLayout::create();
+		PanelFlowLayout->setHorizontalGap(3);
+		PanelFlowLayout->setVerticalGap(3);
+
+		PanelRefPtr ExampleSplitPanelPanel1 = OSG::Panel::create();
+		ExampleSplitPanelPanel1->pushToChildren(LoadButton);
+		ExampleSplitPanelPanel1->pushToChildren(theTextEditor);
+		ExampleSplitPanelPanel1->setLayout(PanelFlowLayout);
+
+	    BorderLayoutRefPtr MainInternalWindowLayout = OSG::BorderLayout::create();
+
+		BorderLayoutConstraintsRefPtr ExampleSplitPanelConstraints = OSG::BorderLayoutConstraints::create();
+		ExampleSplitPanelConstraints->setRegion(BorderLayoutConstraints::BORDER_CENTER);
+
+
+		SplitPanelRefPtr ExampleSplitPanel = OSG::SplitPanel::create();
+
+		ExampleSplitPanel->setConstraints(ExampleSplitPanelConstraints);
+		ExampleSplitPanel->setMinComponent(ExampleSplitPanelPanel1);
+		
+		// ExampleSplitPanel->setOrientation(SplitPanel::VERTICAL_ORIENTATION);
+		ExampleSplitPanel->setDividerPosition(.25); // this is a percentage
+		ExampleSplitPanel->setDividerSize(5);
+		// ExampleSplitPanel->setExpandable(false);
+		ExampleSplitPanel->setMaxDividerPosition(0.5);
+		ExampleSplitPanel->setMinDividerPosition(0.1);
+
+		// also, if you want to change the way the divider looks, you can always set a
+		// DrawObjectCanvas in place of the default divider
+		// ExampleSplitPanel->setDividerDrawObject(drawObjectName);
+
+		// Create The Main InternalWindow
+		// Create Background to be used with the Main InternalWindow
+		ColorLayerRefPtr MainInternalWindowBackground = OSG::ColorLayer::create();
+		MainInternalWindowBackground->setColor(Color4f(1.0,1.0,1.0,0.5));
+
+		InternalWindowRefPtr MainInternalWindow = OSG::InternalWindow::create();
+		MainInternalWindow->pushToChildren(ExampleSplitPanel);
+		MainInternalWindow->setLayout(MainInternalWindowLayout);
+		MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
+		MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
+		MainInternalWindow->setScalingInDrawingSurface(Vec2f(1.0f,1.0f));
+		MainInternalWindow->setDrawTitlebar(false);
+		MainInternalWindow->setResizable(false);
+		MainInternalWindow->setAllInsets(5);
 
     	  
-	    ButtonRefPtr SaveButton = Button::create();
+	    //ButtonRefPtr SaveButton = Button::create();
 
-	    SaveButton->setMinSize(Vec2f(50, 25));
-        SaveButton->setMaxSize(Vec2f(200, 100));
-        SaveButton->setPreferredSize(Vec2f(100, 50));
-        SaveButton->setToolTipText("Click to save the currently opened file");
-        SaveButton->setText("Save File");
+	    //SaveButton->setMinSize(Vec2f(50, 25));
+     //   SaveButton->setMaxSize(Vec2f(200, 100));
+     //   SaveButton->setPreferredSize(Vec2f(100, 50));
+     //   SaveButton->setToolTipText("Click to save the currently opened file");
+     //   SaveButton->setText("Save File");
 
-        SaveButton->connectActionPerformed(boost::bind(handleSaveButtonAction, _1, TutorialWindow.get(),theTextEditor.get()));
+     //   SaveButton->connectActionPerformed(boost::bind(handleSaveButtonAction, _1, TutorialWindow.get(),theTextEditor.get()));
 
-        // Create The Main InternalWindow
-        // Create Background to be used with the Main InternalWindow
-        ColorLayerRefPtr MainInternalWindowBackground = ColorLayer::create();
-        MainInternalWindowBackground->setColor(Color4f(1.0,1.0,1.0,0.5));
-
-        LayoutRefPtr MainInternalWindowLayout = FlowLayout::create();
-
-        InternalWindowRefPtr MainInternalWindow = InternalWindow::create();
-        //MainInternalWindow->pushToChildren(TextAreaScrollPanel);
-        MainInternalWindow->pushToChildren(theTextEditor);
-        MainInternalWindow->pushToChildren(LoadButton);
-        MainInternalWindow->pushToChildren(SaveButton);
-        MainInternalWindow->setLayout(MainInternalWindowLayout);
-        MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
-        MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
-        MainInternalWindow->setScalingInDrawingSurface(Vec2f(0.85f,0.85f));
-        //MainInternalWindow->setDrawTitlebar(true);
-        //MainInternalWindow->setResizable(true);
-
+    
         // Create the Drawing Surface
         UIDrawingSurfaceRefPtr TutorialDrawingSurface = UIDrawingSurface::create();
         TutorialDrawingSurface->setGraphics(TutorialGraphics);
@@ -209,8 +240,7 @@ int main(int argc, char **argv)
         UIForegroundRefPtr TutorialUIForeground = UIForeground::create();
 
         TutorialUIForeground->setDrawingSurface(TutorialDrawingSurface);
-
-
+		
         sceneManager.setRoot(scene);
 
         // Add the UI Foreground Object to the Scene
@@ -227,7 +257,7 @@ int main(int argc, char **argv)
         Pnt2f WinPos((TutorialWindow->getDesktopSize() - WinSize) *0.5);
         TutorialWindow->openWindow(WinPos,
                                    WinSize,
-                                   "06Editor");
+                                   "VizTool");
         TutorialWindow->connectKeyTyped(boost::bind(keyTyped, _1, theTextEditor.get()));
 
         commitChanges();
