@@ -49,7 +49,7 @@
 #include "OSGSplitPanel.h"
 #include "OSGBorderLayout.h"
 #include "OSGBorderLayoutConstraints.h"
-
+#include "OSGUIRectangle.h"
 
 #include "OSGPlainTableDOM.h"
 #include "OSGCell.h"
@@ -59,6 +59,13 @@
 #include "OSGCellView.h"
 
 
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/ordered_index.hpp>
+#include <iostream>
+#include <string>
+#include <utility>
+#include <algorithm>
 // Activate the OpenSG namespace
 OSG_USING_NAMESPACE
 
@@ -67,7 +74,7 @@ void display(SimpleSceneManager *mgr);
 void reshape(Vec2f Size, SimpleSceneManager *mgr);
 
 std::map< Int32,Pnt3f > cubePoints;
-static float cubeSize = 5.f;
+static float cubeSize = 25.f;
 enum cameraManipulation {FROM,AT,BOTH};
 std::map<Int32,std::map<std::string,NodeRefPtr>> tableToNodesMap;
 std::map<Int32,std::map<std::string,NodeRefPtr>>::iterator tableToNodesMapItr;
@@ -78,6 +85,12 @@ static Int32 biggestClusterNoOfNodes = 0;
 static Int32 smallestCluster = 99999;
 static Int32 smallestClusterNoOfNodes = 99999;
 std::vector<NodeRefPtr> highlightedNodes;
+ViewportRefPtr TutorialViewport;
+ChunkMaterialRefPtr GreenBackgroundMaterial,YellowBackgroundMaterial;
+UIFontRefPtr _Font;
+
+ChunkMaterialRefPtr createGreenMaterial(void);
+ChunkMaterialRefPtr createYellowMaterial(void);
 
 void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 {
@@ -85,7 +98,53 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
     {
         mgr->mouseButtonPress(e->getButton(), e->getLocation().x(), e->getLocation().y());
     }
+	if(e->getButton() == MouseEventDetails::BUTTON1)
+    {
+		if(!(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CONTROL))
+		{
+			for(int i=0;i<highlightedNodes.size();i++)
+			{
+				dynamic_cast<Geometry*>(highlightedNodes[i]->getCore())->setMaterial(createGreenMaterial());
+			}
+			highlightedNodes.clear();
+		}
+
+        Line ViewRay;
+
+        TutorialViewport->getCamera()->calcViewRay( ViewRay, e->getX(),e->getY(), *TutorialViewport);
+
+        IntersectAction *CastRayAction = IntersectAction::create();
+
+        CastRayAction->setLine( ViewRay );
+        CastRayAction->apply( TutorialViewport->getRoot() );             
+
+        if (CastRayAction->didHit())
+        {
+            NodeRefPtr theNode = CastRayAction->getHitObject();
+			if(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CONTROL)
+			{
+				//check if theNode is in highlightedNodes List
+				std::vector<NodeRefPtr>::iterator highlightedNodesItr = std::find(highlightedNodes.begin(),highlightedNodes.end(),theNode);
+				if( highlightedNodesItr != highlightedNodes.end())
+				{
+					dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createGreenMaterial());
+					highlightedNodes.erase(highlightedNodesItr);	
+				}
+				else
+				{
+					dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
+					highlightedNodes.push_back(theNode);
+				}
+			}
+			else
+			{
+				dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
+				highlightedNodes.push_back(theNode);
+			}
+	    }
+    }
 }
+
 void mouseReleased(MouseEventDetails* const e, SimpleSceneManager *mgr)
 {
     if(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CAPS_LOCK)
@@ -255,9 +314,14 @@ void handleSaveButtonAction(ActionEventDetails* const details,
 
 }
 
+
+
 ChunkMaterialRefPtr createGreenMaterial(void){
 
-    ChunkMaterialRefPtr GreenBackgroundMaterial = ChunkMaterial::create();
+	if(GreenBackgroundMaterial)
+		return GreenBackgroundMaterial;
+	
+    GreenBackgroundMaterial = ChunkMaterial::create();
     MaterialChunkRefPtr GreenBackgroundMaterialChunk = MaterialChunk::create();
     GreenBackgroundMaterialChunk->setAmbient(Color4f(0.0,1.0,0.0,1.0));
     GreenBackgroundMaterialChunk->setDiffuse(Color4f(0.0,1.0,0.0,1.0));
@@ -270,7 +334,10 @@ ChunkMaterialRefPtr createGreenMaterial(void){
 
 ChunkMaterialRefPtr createYellowMaterial(void){
 
-    ChunkMaterialRefPtr YellowBackgroundMaterial = ChunkMaterial::create();
+	if(YellowBackgroundMaterial)
+		return YellowBackgroundMaterial;
+
+    YellowBackgroundMaterial = ChunkMaterial::create();
     MaterialChunkRefPtr YellowBackgroundMaterialChunk = MaterialChunk::create();
     YellowBackgroundMaterialChunk->setAmbient(Color4f(1.0,1.0,0.0,1.0));
     YellowBackgroundMaterialChunk->setDiffuse(Color4f(1.0,1.0,0.0,1.0));
@@ -281,14 +348,59 @@ ChunkMaterialRefPtr createYellowMaterial(void){
 
 }
 
-NodeTransitPtr createCube(UInt32 side)
+NodeTransitPtr createFrontFaceOfCube(WindowEventProducer* const TutorialWindow)
+{
+	LabelRefPtr theLabel = Label::create();
+	//theLabel->setMinSize(Vec2f(theLabel, theLabel));
+    theLabel->setMaxSize(Vec2f(cubeSize, cubeSize/2));
+	theLabel->setPreferredSize(Vec2f(cubeSize, cubeSize/3));
+	theLabel->setText("Sample Label");
+	theLabel->setFont(_Font);
+
+    ColorLayerRefPtr MainInternalWindowBackground = OSG::ColorLayer::create();
+    MainInternalWindowBackground->setColor(Color4f(0.0,1.0,0.0,0.5));
+
+	LayoutRefPtr MainInternalWindowLayout = OSG::FlowLayout::create();
+
+	InternalWindowRefPtr MainInternalWindow = OSG::InternalWindow::create();
+	MainInternalWindow->pushToChildren(theLabel);
+	MainInternalWindow->setLayout(MainInternalWindowLayout);
+	MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
+	MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
+	MainInternalWindow->setScalingInDrawingSurface(Vec2f(1.f,1.f));
+	MainInternalWindow->setDrawTitlebar(false);
+	MainInternalWindow->setResizable(false);
+
+	GraphicsRefPtr TutorialGraphics = Graphics2D::create();
+
+	UIDrawingSurfaceRefPtr TutorialDrawingSurface = UIDrawingSurface::create();
+        TutorialDrawingSurface->setGraphics(TutorialGraphics);
+        TutorialDrawingSurface->setEventProducer(TutorialWindow);
+  
+	TutorialDrawingSurface->openWindow(MainInternalWindow);
+
+
+	UIRectangleRefPtr ExampleUIRectangle = UIRectangle::create();
+        ExampleUIRectangle->setPoint(Pnt3f(-cubeSize/2,-cubeSize/2,cubeSize/2));
+        ExampleUIRectangle->setWidth(cubeSize);
+        ExampleUIRectangle->setHeight(cubeSize);
+        ExampleUIRectangle->setDrawingSurface(TutorialDrawingSurface);
+    
+    NodeRefPtr ExampleUIRectangleNode = OSG::Node::create();
+        ExampleUIRectangleNode->setCore(ExampleUIRectangle);
+
+	return NodeTransitPtr(ExampleUIRectangleNode);
+
+}
+
+NodeTransitPtr createCube(UInt32 side,WindowEventProducer* const TutorialWindow)
 {
 	// GeoPTypes will define the types of primitives to be used
     GeoUInt8PropertyRecPtr type = GeoUInt8Property::create();
     type->addValue(GL_QUADS);
 
 	GeoUInt32PropertyRecPtr length = GeoUInt32Property::create();
-    length->addValue(4 * 6);
+    length->addValue(4 * 5);
 
 	// GeoPnt3fProperty stores the positions of all vertices used in
     // this specific geometry core
@@ -315,11 +427,11 @@ NodeTransitPtr createCube(UInt32 side)
     // provided primitives
     GeoUInt32PropertyRecPtr indices = GeoUInt32Property::create();
         
-		indices->addValue(0);
+/*		indices->addValue(0);
 		indices->addValue(3);
 		indices->addValue(2);
 		indices->addValue(1);
-		
+*/		
 		indices->addValue(4);
 		indices->addValue(7);
 		indices->addValue(6);
@@ -358,7 +470,14 @@ NodeTransitPtr createCube(UInt32 side)
 		NodeRecPtr root = Node::create();
 		root->setCore(geo);
 
-		return NodeTransitPtr(root);
+		NodeRefPtr frontFace = createFrontFaceOfCube(TutorialWindow);
+
+		NodeRefPtr holder = Node::create();
+		holder->setCore(Group::create());
+		holder->addChild(root);
+		holder->addChild(frontFace);
+
+		return NodeTransitPtr(holder);
 }
 
 
@@ -378,7 +497,8 @@ void populatePoints()
 
 void create3DScene(TableDomArea* const ExampleTableDomArea,
 							SimpleSceneManager* mgr,
-							Node* scene)
+							Node* scene,
+							WindowEventProducer* const TutorialWindow)
 {
 	CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
 	Int32 rows = rootCell->getMaximumRow();
@@ -394,7 +514,7 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 	for(Int32 i=0;i<rows;i++)
 	{
 		Matrix mat;
-		mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) + ((rows - 1 - i) * 5.0),0.0);
+		mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) + ((rows - 1 - i) * 3.0),0.0);
 		TransformRefPtr theRowTranCore = Transform::create();
 		theRowTranCore->setMatrix(mat);
 	    NodeRefPtr theRowTranNode = Node::create();
@@ -441,12 +561,12 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 					
 					if(theString != "")
 					{
-						NodeRefPtr theCuboid = makeBox(column_width, cubeSize, cubeSize, 1, 1, 1);//createCuboidGeo(column_width);
+						NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
 						dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
 						tableToNodesMap[i][theString] = theCuboid;
 
 						Matrix mat;
-						mat.setTranslate((count * column_width) + (count * 5.0),0.0,0.0);
+						mat.setTranslate((count * cubeSize/*column_width*/) + (count * 3.0),0.0,0.0);
 						TransformRefPtr theCuboidTranCore = Transform::create();
 						theCuboidTranCore->setMatrix(mat);
 						NodeRefPtr theCuboidTranNode = Node::create();
@@ -514,6 +634,7 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 	smallestClusterNoOfNodes = 99999;
 
 	removingPreviouScene(scene);
+	/*
 	std::cout<<"Visualizing Data"<<std::endl;
 	CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
 	UInt32 rows = rootCell->getMaximumRow();
@@ -536,7 +657,8 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 		}
 		std::cout<<"\n";
 	}
-	create3DScene(ExampleTableDomArea,mgr,scene);
+	*/
+	create3DScene(ExampleTableDomArea,mgr,scene,TutorialWindow);
 
 	//mgr->getCamera()->setBeacon(createCameraBeacon(scene));
 	mgr->showAll();
@@ -995,12 +1117,21 @@ int main(int argc, char **argv)
         sceneManager.setRoot(scene);
 
         // Add the UI Foreground Object to the Scene
-        ViewportRefPtr TutorialViewport = sceneManager.getWindow()->getPort(0);
+        TutorialViewport = sceneManager.getWindow()->getPort(0);
         TutorialViewport->addForeground(TutorialUIForeground);
     		
+		_Font = UIFont::create();
+		_Font->setFamily("SANS");
+		_Font->setGap(1);
+		_Font->setGlyphPixelSize(12);
+		_Font->setSize(5);
+		_Font->setTextureWidth(0);
+		_Font->setStyle(TextFace::STYLE_PLAIN);
+
 
         // Show the whole Scene
         sceneManager.showAll();
+
 
     	
         //Open Window
