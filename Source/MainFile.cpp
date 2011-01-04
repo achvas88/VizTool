@@ -59,15 +59,126 @@
 #include "OSGCellView.h"
 
 
+#if !defined(NDEBUG)
+#define BOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING
+#define BOOST_MULTI_INDEX_ENABLE_SAFE_MODE
+#endif
+
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>
-#include <iostream>
-#include <string>
-#include <utility>
 #include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <string>
+
+using boost::multi_index_container;
+using namespace boost::multi_index;
+
 // Activate the OpenSG namespace
 OSG_USING_NAMESPACE
+
+struct node
+{
+	UInt32 clusterID;
+	std::string label;
+	NodeRefPtr theNode;
+
+	node(UInt32 clusterID_,std::string label_,NodeRefPtr theNode_):clusterID(clusterID_),label(label_),theNode(theNode_){}
+	node(){}
+
+	friend std::ostream& operator<<(std::ostream& os,const node& n)
+	{
+		os<<"\nCluster ID: "<<n.clusterID<<" Node label: "<<n.label<<std::endl;
+		return os;
+	}
+};
+
+/* tags for accessing the corresponding indices of employee_set */
+
+struct clusterID{};
+struct label{};
+struct theNode{};
+
+
+/* see Compiler specifics: Use of member_offset for info on
+ * BOOST_MULTI_INDEX_MEMBER
+ */
+
+/* Define a multi_index_container of nodes with following indices:
+ *   - a non-unique index sorted by node::clusterID,
+ *   - a non-unique index sorted by node::label,
+ *   - a unique index sorted by node::theNode.
+ */
+
+typedef multi_index_container<
+  node,
+  indexed_by<
+    ordered_non_unique<
+      tag<clusterID>,  BOOST_MULTI_INDEX_MEMBER(node,UInt32,clusterID)>,
+    ordered_non_unique<
+	tag<label>,BOOST_MULTI_INDEX_MEMBER(node,std::string,label)>,
+    ordered_unique<
+      tag<theNode>, BOOST_MULTI_INDEX_MEMBER(node,NodeRefPtr,theNode)> >
+> node_set;
+
+
+std::vector<node> get_by_clusterID(
+ const node_set& s,
+ UInt32 theID
+)
+{
+	std::vector<node> result;
+	typedef boost::multi_index::index<node_set,clusterID>::type id_sequence;
+	const id_sequence& i= get<clusterID>(s);
+	id_sequence::iterator itr = i.find(theID);
+	for(; itr != i.end(); itr++)
+	{
+		if(itr->clusterID != theID) break;
+		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		result.push_back(*itr);
+	}
+	return result;
+}
+
+
+node get_by_theNode(
+ const node_set& s,
+ NodeRefPtr theNodePtr
+)
+{
+	typedef boost::multi_index::index<node_set,theNode>::type node_sequence;
+    const node_sequence& i= get<theNode>(s);
+	node_sequence::iterator itr = i.find(theNodePtr);
+	if(itr != i.end())
+	{
+		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		return *itr;
+	}
+	node result;
+	return result;
+}
+
+std::vector<node> get_by_label(
+ const node_set& s,
+ std::string thelabel
+)
+{
+	std::vector<node> result;
+	typedef boost::multi_index::index<node_set,label>::type label_sequence;
+    const label_sequence& i= get<label>(s);
+
+	label_sequence::iterator itr = i.find(thelabel);
+
+	for(; itr != i.end(); itr++)
+	{
+		if(itr->label != thelabel) break;
+		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		result.push_back(*itr);
+	}
+
+	return result;
+}
 
 // Forward declaration so we can have the interesting stuff upfront
 void display(SimpleSceneManager *mgr);
@@ -76,9 +187,10 @@ void reshape(Vec2f Size, SimpleSceneManager *mgr);
 std::map< Int32,Pnt3f > cubePoints;
 static float cubeSize = 25.f;
 enum cameraManipulation {FROM,AT,BOTH};
-std::map<Int32,std::map<std::string,NodeRefPtr>> tableToNodesMap;
-std::map<Int32,std::map<std::string,NodeRefPtr>>::iterator tableToNodesMapItr;
-std::map<Int32,std::map<std::string,NodeRefPtr>>::const_iterator tableToNodesMapConstItr;
+node_set nodeDetailsTable;
+//std::map<Int32,std::map<std::string,NodeRefPtr>> tableToNodesMap;
+//std::map<Int32,std::map<std::string,NodeRefPtr>>::iterator tableToNodesMapItr;
+//std::map<Int32,std::map<std::string,NodeRefPtr>>::const_iterator tableToNodesMapConstItr;
 NodeRefPtr allTranNode;
 static Int32 biggestCluster = 0;
 static Int32 biggestClusterNoOfNodes = 0;
@@ -375,7 +487,7 @@ NodeTransitPtr createFrontFaceOfCube(WindowEventProducer* const TutorialWindow)
 
 	UIDrawingSurfaceRefPtr TutorialDrawingSurface = UIDrawingSurface::create();
         TutorialDrawingSurface->setGraphics(TutorialGraphics);
-        TutorialDrawingSurface->setEventProducer(TutorialWindow);
+        //TutorialDrawingSurface->setEventProducer(TutorialWindow);
   
 	TutorialDrawingSurface->openWindow(MainInternalWindow);
 
@@ -563,7 +675,8 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 					{
 						NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
 						dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
-						tableToNodesMap[i][theString] = theCuboid;
+						//tableToNodesMap[i][theString] = theCuboid;
+						nodeDetailsTable.insert(node(i,theString,theCuboid));
 
 						Matrix mat;
 						mat.setTranslate((count * cubeSize/*column_width*/) + (count * 3.0),0.0,0.0);
@@ -627,7 +740,8 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 							SimpleSceneManager* mgr,
 							Node* scene)
 {
-	tableToNodesMap.clear();
+	
+	nodeDetailsTable.clear();
 	biggestCluster = 0;
 	biggestClusterNoOfNodes = 0;
 	smallestCluster = 99999;
@@ -686,7 +800,7 @@ void handleviewLargestClusterButtonAction(ActionEventDetails* const details)
 	detailsTextDOMArea->write("Number of nodes:" + biggestClusterNoOfNodesS + "\r\n");
 	detailsTextDOMArea->write("The Nodes:\r\n");
 
-	std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[biggestCluster];
+	/*std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[biggestCluster];
 	for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
 	{
 		std::string theNodeS = theRowItr->first;
@@ -694,6 +808,13 @@ void handleviewLargestClusterButtonAction(ActionEventDetails* const details)
 		NodeRefPtr theNode = theRowItr->second;
 		dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 		highlightedNodes.push_back(theNode);
+	}*/
+	std::vector<node> result = get_by_clusterID(nodeDetailsTable,biggestCluster);
+	for(UInt32 i=0;i<result.size();i++)
+	{
+		detailsTextDOMArea->write(result[i].label+"\r\n");
+		dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
+		highlightedNodes.push_back(result[i].theNode);
 	}
 	
 }
@@ -717,7 +838,7 @@ void handleviewSmallestClusterButtonAction(ActionEventDetails* const details)
 
 	detailsTextDOMArea->write("The Nodes:\r\n");
 
-	std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[smallestCluster];
+	/*std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[smallestCluster];
 	for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
 	{
 		std::string theNodeS = theRowItr->first;
@@ -725,6 +846,14 @@ void handleviewSmallestClusterButtonAction(ActionEventDetails* const details)
 		NodeRefPtr theNode = theRowItr->second;
 		dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 		highlightedNodes.push_back(theNode);
+	}*/
+
+	std::vector<node> result = get_by_clusterID(nodeDetailsTable,smallestCluster);
+	for(UInt32 i=0;i<result.size();i++)
+	{
+		detailsTextDOMArea->write(result[i].label+"\r\n");
+		dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
+		highlightedNodes.push_back(result[i].theNode);
 	}
 
 }
@@ -755,10 +884,13 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 		sprintf(theClusterC,"%d",givenRow);
 		std::string theClusterS= theClusterC;
 
-		std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[givenRow];
+		//std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[givenRow];
+
+		std::vector<node> result = get_by_clusterID(nodeDetailsTable,givenRow);
+	
 
 		char theClusterNoOfNodesC[255];
-		sprintf(theClusterNoOfNodesC,"%d",theRow.size());
+		sprintf(theClusterNoOfNodesC,"%d",result.size());
 		std::string theClusterNoOfNodesS= theClusterNoOfNodesC;
 		detailsTextDOMArea->clear();
 		detailsTextDOMArea->write("the Cluster:" + theClusterS + "\r\n");
@@ -767,19 +899,27 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 		detailsTextDOMArea->write("The Nodes:\r\n");
 
 		
-		for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
+		/*for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
 		{
 			std::string theNodeS = theRowItr->first;
 			detailsTextDOMArea->write(theNodeS+"\r\n");
 			NodeRefPtr theNode = theRowItr->second;
 			dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 			highlightedNodes.push_back(theNode);
+		}*/
+
+		for(UInt32 i=0;i<result.size();i++)
+		{
+			detailsTextDOMArea->write(result[i].label+"\r\n");
+			dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
+			highlightedNodes.push_back(result[i].theNode);
 		}
+
 	}
 
 }
 
-NodeTransitPtr findInMap(std::string nodeString,Int32 &givenRow)
+/*NodeTransitPtr findInMap(std::string nodeString,Int32 &givenRow)
 {
 	int count=0;
 	for(std::map<Int32,std::map<std::string,NodeRefPtr> >::const_iterator completeItr(tableToNodesMap.begin());completeItr!=tableToNodesMap.end();completeItr++)
@@ -794,7 +934,7 @@ NodeTransitPtr findInMap(std::string nodeString,Int32 &givenRow)
 	}
 	return NodeTransitPtr(NULL);
 }
-
+*/
 
 void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextField* nodeIDField)
 {
@@ -808,23 +948,28 @@ void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextFiel
 
 	Int32 givenRow = -1;
 
-	NodeRefPtr theNode = findInMap(nodeString,givenRow);
+	std::vector<node> result = get_by_label(nodeDetailsTable,nodeString);
 
-	if(givenRow == -1) 
+	if(result.size()<=0) 
 	{
 		detailsTextDOMArea->clear();
 		detailsTextDOMArea->write("Error: Node not found\r\n");
 	}
 	else
 	{
-		char theClusterC[255];
-		sprintf(theClusterC,"%d",givenRow);
-		std::string theClusterS= theClusterC;
 		detailsTextDOMArea->clear();
-		detailsTextDOMArea->write("the Cluster:" + theClusterS + "\r\n");
+		for(UInt32 i=0;i<result.size();i++)
+		{
+			char theClusterC[255];
+			sprintf(theClusterC,"%d",result[i].clusterID);
+			std::string theClusterS= theClusterC;
+			detailsTextDOMArea->write("the Cluster:" + theClusterS + "\r\n");
 
-		dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
-		highlightedNodes.push_back(theNode);
+			dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
+			highlightedNodes.push_back(result[i].theNode);
+
+			detailsTextDOMArea->write("_________________\r\n");
+		}
 	}
 
 }
