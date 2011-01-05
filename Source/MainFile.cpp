@@ -200,6 +200,7 @@ std::vector<NodeRefPtr> highlightedNodes;
 ViewportRefPtr TutorialViewport;
 ChunkMaterialRefPtr GreenBackgroundMaterial,YellowBackgroundMaterial;
 UIFontRefPtr _Font;
+AdvancedTextDomAreaRefPtr detailsTextDOMArea;
 
 ChunkMaterialRefPtr createGreenMaterial(void);
 ChunkMaterialRefPtr createYellowMaterial(void);
@@ -246,12 +247,30 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 				{
 					dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 					highlightedNodes.push_back(theNode);
+					node result = get_by_theNode(nodeDetailsTable,theNode); 
+					std::stringstream in;
+					in<<result.clusterID;
+					std::string ins;
+					in>>ins;
+					detailsTextDOMArea->write("\r\n");
+					detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
+					detailsTextDOMArea->write("Label: " + result.label+"\r\n");
+					detailsTextDOMArea->write("_________________\r\n");
 				}
 			}
 			else
 			{
 				dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 				highlightedNodes.push_back(theNode);
+				node result = get_by_theNode(nodeDetailsTable,theNode); 
+				detailsTextDOMArea->clear();
+				std::stringstream in;
+				in<<result.clusterID;
+				std::string ins;
+				in>>ins;
+				detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
+				detailsTextDOMArea->write("Label: " + result.label+"\r\n");
+				detailsTextDOMArea->write("_________________\r\n");
 			}
 	    }
     }
@@ -780,7 +799,7 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 
 
 
-AdvancedTextDomAreaRefPtr detailsTextDOMArea;
+
 
 void handleviewLargestClusterButtonAction(ActionEventDetails* const details)
 {
@@ -918,23 +937,6 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 	}
 
 }
-
-/*NodeTransitPtr findInMap(std::string nodeString,Int32 &givenRow)
-{
-	int count=0;
-	for(std::map<Int32,std::map<std::string,NodeRefPtr> >::const_iterator completeItr(tableToNodesMap.begin());completeItr!=tableToNodesMap.end();completeItr++)
-	{
-		std::map<std::string,NodeRefPtr> theRow = completeItr->second;
-		if(theRow[nodeString]!=NULL)
-		{
-			givenRow = count;
-			return NodeTransitPtr(theRow[nodeString]);
-		}
-		count++;
-	}
-	return NodeTransitPtr(NULL);
-}
-*/
 
 void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextField* nodeIDField)
 {
