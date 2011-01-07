@@ -49,6 +49,7 @@
 #include "OSGSplitPanel.h"
 #include "OSGBorderLayout.h"
 #include "OSGBorderLayoutConstraints.h"
+#include "OSGGridLayout.h"
 #include "OSGUIRectangle.h"
 
 #include "OSGPlainTableDOM.h"
@@ -58,6 +59,15 @@
 #include "OSGTableDomLayoutManager.h"
 #include "OSGCellView.h"
 
+#include <OSGMenu.h>
+#include <OSGMenuItem.h>
+#include <OSGMenuBar.h>
+
+#include <OSGMaterialGroup.h>
+
+#include "rapidxml.h"
+#include "rapidxml_iterators.h"
+#include "rapidxml_print.h"
 
 #if !defined(NDEBUG)
 #define BOOST_MULTI_INDEX_ENABLE_INVARIANT_CHECKING
@@ -188,9 +198,6 @@ std::map< Int32,Pnt3f > cubePoints;
 static float cubeSize = 25.f;
 enum cameraManipulation {FROM,AT,BOTH};
 node_set nodeDetailsTable;
-//std::map<Int32,std::map<std::string,NodeRefPtr>> tableToNodesMap;
-//std::map<Int32,std::map<std::string,NodeRefPtr>>::iterator tableToNodesMapItr;
-//std::map<Int32,std::map<std::string,NodeRefPtr>>::const_iterator tableToNodesMapConstItr;
 NodeRefPtr allTranNode;
 static Int32 biggestCluster = 0;
 static Int32 biggestClusterNoOfNodes = 0;
@@ -201,9 +208,194 @@ ViewportRefPtr TutorialViewport;
 ChunkMaterialRefPtr GreenBackgroundMaterial,YellowBackgroundMaterial;
 UIFontRefPtr _Font;
 AdvancedTextDomAreaRefPtr detailsTextDOMArea;
+InternalWindowRefPtr NotepadInternalWindow;
+
+// The Menubar Declarations
+MenuBarRefPtr	_MainMenuBar;
+
+// The Menus Declarations
+MenuRefPtr		_ProjectMenu;
+MenuRefPtr		_ViewMenu;
+MenuRefPtr		_VisualizationMenu;
+MenuRefPtr		_ExportMenu;
+ 
+// The Project Menu Items Declarations
+MenuItemRefPtr _NewProjectItem;
+MenuItemRefPtr _LoadProjectItem;
+MenuItemRefPtr _SaveProjectItem;
+MenuItemRefPtr _LoadDataSetItem;
+MenuItemRefPtr _ExitItem;
+ 
+// The View Menu Items Declarations
+MenuItemRefPtr _NotepadItem;
+
+// The Visualization Menu Items Declarations
+MenuItemRefPtr _3dBarsItem;
+MenuItemRefPtr _PearsonViewItem;
+
+// The Export Menu Items Declarations
+MenuItemRefPtr _ExportSelectedItem;
+
+bool NotepadVisible;
 
 ChunkMaterialRefPtr createGreenMaterial(void);
 ChunkMaterialRefPtr createYellowMaterial(void);
+
+
+void handleBasicAction(ActionEventDetails* const details)
+{
+    if(details->getSource() == _ExitItem)
+    {
+		dynamic_cast<WindowEventProducer*>(details->getSource())->closeWindow();
+	}
+}
+
+void createMenuBar(void)
+{
+	
+	// The Project Menu Items Definitions
+	_NewProjectItem = MenuItem::create();				
+	_NewProjectItem->setFont(_Font);
+    _NewProjectItem->setText("New Project");
+	_NewProjectItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _NewProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _NewProjectItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_LoadProjectItem = MenuItem::create();				
+	_LoadProjectItem->setFont(_Font);
+    _LoadProjectItem->setText("Load Dataset");
+	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_L);
+    _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_L);
+	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_SaveProjectItem = MenuItem::create();				
+	_SaveProjectItem->setFont(_Font);
+    _SaveProjectItem->setText("Load Dataset");
+	_SaveProjectItem->setAcceleratorKey(KeyEventDetails::KEY_S);
+    _SaveProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _SaveProjectItem->setMnemonicKey(KeyEventDetails::KEY_S);
+	_SaveProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_LoadDataSetItem = MenuItem::create();				
+	_LoadDataSetItem->setFont(_Font);
+    _LoadDataSetItem->setText("Load Dataset");
+	_LoadDataSetItem->setAcceleratorKey(KeyEventDetails::KEY_L);
+    _LoadDataSetItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _LoadDataSetItem->setMnemonicKey(KeyEventDetails::KEY_L);
+	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_ExitItem = MenuItem::create();				
+    _ExitItem->setText("Exit");
+	_ExitItem->setFont(_Font);
+    _ExitItem->setAcceleratorKey(KeyEventDetails::KEY_Q);
+    _ExitItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _ExitItem->setMnemonicKey(KeyEventDetails::KEY_Q);
+	_ExitItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	
+	// The View Menu Items Definitions
+	_NotepadItem = MenuItem::create();				
+    _NotepadItem->setText("View Notepad");
+	_NotepadItem->setFont(_Font);
+    _NotepadItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _NotepadItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _NotepadItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_NotepadItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Visualization Menu Items Definitions
+	_3dBarsItem = MenuItem::create();				
+    _3dBarsItem->setText("3D Bars");
+	_3dBarsItem->setFont(_Font);
+    _3dBarsItem->setAcceleratorKey(KeyEventDetails::KEY_B);
+    _3dBarsItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _3dBarsItem->setMnemonicKey(KeyEventDetails::KEY_B);
+	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	
+	_PearsonViewItem = MenuItem::create();				
+    _PearsonViewItem->setText("Pearson Visualization");
+	_PearsonViewItem->setFont(_Font);
+    _PearsonViewItem->setAcceleratorKey(KeyEventDetails::KEY_P);
+    _PearsonViewItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _PearsonViewItem->setMnemonicKey(KeyEventDetails::KEY_P);
+	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Export Menu Items Definitions
+	_ExportSelectedItem = MenuItem::create();				
+    _ExportSelectedItem->setText("Export Selected Nodes");
+	_ExportSelectedItem->setFont(_Font);
+    _ExportSelectedItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _ExportSelectedItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Project Menu Definition
+    _ProjectMenu = Menu::create();
+	_ProjectMenu->setFont(_Font);
+	_ProjectMenu->setText("Project");
+	_ProjectMenu->setMnemonicKey(KeyEventDetails::KEY_F);
+	// Addition of the Project Menu Items 
+	_ProjectMenu->addItem(_NewProjectItem);
+	_ProjectMenu->addItem(_LoadProjectItem);
+	_ProjectMenu->addItem(_SaveProjectItem);
+	_ProjectMenu->addSeparator();
+    _ProjectMenu->addItem(_LoadDataSetItem);
+    _ProjectMenu->addSeparator();
+	_ProjectMenu->addItem(_ExitItem);
+    
+	// The View Menu Definition
+    _ViewMenu = Menu::create();
+	_ViewMenu->setText("View");
+	_ViewMenu->setFont(_Font);
+    _ViewMenu->setMnemonicKey(KeyEventDetails::KEY_I);
+	// Addition of the View Menu Items 
+    _ViewMenu->addItem(_NotepadItem);
+    
+    // The Visualization Menu Definition
+    _VisualizationMenu = Menu::create();
+	_VisualizationMenu->setText("Visualization");
+	_VisualizationMenu->setFont(_Font);
+    _VisualizationMenu->setMnemonicKey(KeyEventDetails::KEY_Z);
+	// Addition of the Visualization Menu Items 
+    _VisualizationMenu->addItem(_3dBarsItem);
+	_VisualizationMenu->addItem(_PearsonViewItem);
+    
+	// The Export Menu Definition
+    _ExportMenu = Menu::create();
+	_ExportMenu->setText("Export");
+	_ExportMenu->setFont(_Font);
+    _ExportMenu->setMnemonicKey(KeyEventDetails::KEY_X);
+	// Addition of the Export Menu Items 
+    _ExportMenu->addItem(_ExportSelectedItem);
+    
+
+	// The Main Menu Bar Definitions
+	_MainMenuBar = MenuBar::create();
+    _MainMenuBar->addMenu(_ProjectMenu);
+	_MainMenuBar->addMenu(_ViewMenu);
+	_MainMenuBar->addMenu(_VisualizationMenu);
+	_MainMenuBar->addMenu(_ExportMenu);
+	
+}
+void xmlExportScene()
+{
+    rapidxml::xml_document<> doc;
+
+    // xml declaration
+    rapidxml::xml_node<>* decl = doc.allocate_node(rapidxml::node_declaration);
+    decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+    decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+    doc.append_node(decl);
+
+	// root node
+    rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
+                                                   "VizTool Scene");
+    root->append_attribute(doc.allocate_attribute("version", "1.0"));
+    doc.append_node(root);
+
+	rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+
+}
 
 void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 {
@@ -302,7 +494,136 @@ void mouseDragged(MouseEventDetails* const e, SimpleSceneManager *mgr)
 
 void transformBeacon(SimpleSceneManager *mgr, Int32 x, Int32 y, Int32 z,Int32 cameraManipulation);
 
-void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel* ExampleSplitPanel)
+
+
+bool isNotepadWindowVisible(void)
+{
+	return NotepadVisible;
+}
+
+void handleSaveButtonAction(ActionEventDetails* const details,
+                            WindowEventProducer* const TutorialWindow,
+                            AdvancedTextDomArea* const theTextEditor)
+{
+	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
+
+	BoostPath SavePath = TutorialWindow->saveFileDialog("Save Note Window",
+														Filters,
+														std::string("newFile.txt"),
+														BoostPath(".."),
+														true);
+	if(SavePath.string() != "")
+    {
+	    theTextEditor->getTheTextDomArea()->saveFile(SavePath);
+    }
+
+}
+
+void handleLoadNoteButtonAction(ActionEventDetails* const details,
+                            WindowEventProducer* const TutorialWindow,
+                            AdvancedTextDomArea* const theTextEditor)
+{
+	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
+	
+	std::vector<BoostPath> FilesToOpen;
+	FilesToOpen = TutorialWindow->openFileDialog("Open File Window",
+												Filters,
+												BoostPath(".."),
+												false);
+
+    if(FilesToOpen.size() > 0)
+    {
+	    theTextEditor->getTheTextDomArea()->loadFile(FilesToOpen[0]);
+    }
+}
+
+
+void setNotepadWindowVisible(bool isVisible, UIDrawingSurface* const NotepadDrawingSurface, WindowEventProducer* const TutorialWindow)
+{
+	if(isVisible == true)
+	{
+		NotepadVisible = true;
+		if(NotepadInternalWindow)
+		{
+			NotepadDrawingSurface->openWindow(NotepadInternalWindow);
+		}
+		else
+		{
+			AdvancedTextDomAreaRefPtr theNotepad = AdvancedTextDomArea::create();
+			theNotepad->setPreferredSize(Vec2f(200,200));
+			theNotepad->setText("Type your observations here");
+
+			BorderLayoutConstraintsRefPtr theNotepadConstraints = OSG::BorderLayoutConstraints::create();
+			theNotepadConstraints->setRegion(BorderLayoutConstraints::BORDER_CENTER);
+
+			ScrollPanelRefPtr theNotepadScrollPanel = ScrollPanel::create();
+			theNotepadScrollPanel->setPreferredSize(Vec2f(200,200));
+			theNotepadScrollPanel->setViewComponent(theNotepad);
+			theNotepadScrollPanel->setConstraints(theNotepadConstraints);
+
+		
+			GridLayoutRefPtr LoadSaveButtonPanelLayout = OSG::GridLayout::create();
+			LoadSaveButtonPanelLayout->setRows(1);
+			LoadSaveButtonPanelLayout->setColumns(2);
+
+
+			ButtonRefPtr SaveButton = Button::create();
+			SaveButton->setMinSize(Vec2f(50, 25));
+			SaveButton->setPreferredSize(Vec2f(100, 50));
+			SaveButton->setToolTipText("Click to save the note");
+			SaveButton->setText("Save Note");
+			SaveButton->connectActionPerformed(boost::bind(handleSaveButtonAction, _1, TutorialWindow,theNotepad.get()));
+
+			
+			ButtonRefPtr LoadButton = Button::create();
+			LoadButton->setMinSize(Vec2f(50, 25));
+			LoadButton->setPreferredSize(Vec2f(100, 50));
+			LoadButton->setToolTipText("Click to Load a note");
+			LoadButton->setText("Load Note");
+			LoadButton->connectActionPerformed(boost::bind(handleLoadNoteButtonAction, _1, TutorialWindow,theNotepad.get()));
+		
+
+			BorderLayoutConstraintsRefPtr LoadSaveButtonPanelConstraints = OSG::BorderLayoutConstraints::create();
+			LoadSaveButtonPanelConstraints->setRegion(BorderLayoutConstraints::BORDER_SOUTH);
+    
+			PanelRefPtr LoadSaveButtonPanel = Panel::create();
+			LoadSaveButtonPanel->setPreferredSize(Vec2f(200, 55));
+			LoadSaveButtonPanel->pushToChildren(LoadButton);
+			LoadSaveButtonPanel->pushToChildren(SaveButton);
+			LoadSaveButtonPanel->setLayout(LoadSaveButtonPanelLayout);
+			LoadSaveButtonPanel->setConstraints(LoadSaveButtonPanelConstraints);
+
+			BorderLayoutRefPtr NotepadInternalWindowLayout = OSG::BorderLayout::create();
+			ColorLayerRefPtr NotepadInternalWindowBackground = OSG::ColorLayer::create();
+			NotepadInternalWindowBackground->setColor(Color4f(1.0,1.0,1.0,1.0));
+
+			NotepadInternalWindow = OSG::InternalWindow::create();
+			NotepadInternalWindow->pushToChildren(theNotepadScrollPanel);
+			NotepadInternalWindow->pushToChildren(LoadSaveButtonPanel);
+			NotepadInternalWindow->setLayout(NotepadInternalWindowLayout);
+			NotepadInternalWindow->setBackgrounds(NotepadInternalWindowBackground);
+			NotepadInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
+			NotepadInternalWindow->setScalingInDrawingSurface(Vec2f(0.3f,0.5f));
+			//NotepadInternalWindow->setMenuBar(_MainMenuBar);	// to be commented
+			NotepadInternalWindow->setDrawTitlebar(true);
+			NotepadInternalWindow->setResizable(true);
+			NotepadInternalWindow->setTitle("Notepad");
+
+
+			NotepadDrawingSurface->openWindow(NotepadInternalWindow);
+
+		}
+	}
+	else
+	{
+		NotepadVisible = false;
+		NotepadDrawingSurface->closeWindow(NotepadInternalWindow);
+	}
+}
+
+void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel* ExampleSplitPanel,WindowEventProducer* const TutorialWindow,UIDrawingSurface* const TutorialDrawingSurface)
 {
     if(details->getKey() == KeyEventDetails::KEY_Q && details->getModifiers() &
        KeyEventDetails::KEY_MODIFIER_COMMAND)
@@ -312,11 +633,11 @@ void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel
 	if(details->getKey() == KeyEventDetails::KEY_1 && details->getModifiers() &
        KeyEventDetails::KEY_MODIFIER_COMMAND)
     {
-		ExampleSplitPanel->setDividerPosition(.25); // this is a percentage
+		ExampleSplitPanel->setDividerPosition(.2); // this is a percentage
 		ExampleSplitPanel->setDividerSize(5);
 		// ExampleSplitPanel->setExpandable(false);
-		ExampleSplitPanel->setMaxDividerPosition(0.5);
-		ExampleSplitPanel->setMinDividerPosition(0.1);
+		ExampleSplitPanel->setMaxDividerPosition(0.2);
+		ExampleSplitPanel->setMinDividerPosition(0.2);
         
     }
 	if(details->getKey() == KeyEventDetails::KEY_2 && details->getModifiers() &
@@ -401,6 +722,14 @@ void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel
     {
 		mgr->showAll();
     }
+	if(details->getKey() == KeyEventDetails::KEY_N && details->getModifiers() &
+       KeyEventDetails::KEY_MODIFIER_COMMAND)
+	{
+		if(isNotepadWindowVisible() == true)
+			setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
+		else
+			setNotepadWindowVisible(true,TutorialDrawingSurface,TutorialWindow);
+	}
 	//mgr->redraw();
 	
 }
@@ -425,27 +754,6 @@ void handleLoadButtonAction(ActionEventDetails* const details,
 	    ExampleTableDomArea->loadFile(FilesToOpen[0]);
     }
 }
-
-void handleSaveButtonAction(ActionEventDetails* const details,
-                            WindowEventProducer* const TutorialWindow,
-                            AdvancedTextDomArea* const theTextEditor)
-{
-	std::vector<WindowEventProducer::FileDialogFilter> Filters;
-	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
-
-	BoostPath SavePath = TutorialWindow->saveFileDialog("Save Note Window",
-														Filters,
-														std::string("newFile.txt"),
-														BoostPath(".."),
-														true);
-	if(SavePath.string() != "")
-    {
-	    theTextEditor->getTheTextDomArea()->saveFile(SavePath);
-    }
-
-}
-
-
 
 ChunkMaterialRefPtr createGreenMaterial(void){
 
@@ -604,7 +912,7 @@ NodeTransitPtr createCube(UInt32 side,WindowEventProducer* const TutorialWindow)
 		NodeRefPtr frontFace = createFrontFaceOfCube(TutorialWindow);
 
 		NodeRefPtr holder = Node::create();
-		holder->setCore(Group::create());
+		holder->setCore(MaterialGroup::create());
 		holder->addChild(root);
 		holder->addChild(frontFace);
 
@@ -692,8 +1000,8 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 					
 					if(theString != "")
 					{
-						NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
-						dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
+						NodeRefPtr theCuboid = createCube(cubeSize,TutorialWindow);//	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
+						//dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
 						//tableToNodesMap[i][theString] = theCuboid;
 						nodeDetailsTable.insert(node(i,theString,theCuboid));
 
@@ -717,6 +1025,7 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 	scene->addChild(allTranNode);
        
 }
+
 
 void transformBeacon(SimpleSceneManager *m_SSMgr,Int32 x, Int32 y, Int32 z,Int32 cameraManipulation)
 {
@@ -767,33 +1076,8 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 	smallestClusterNoOfNodes = 99999;
 
 	removingPreviouScene(scene);
-	/*
-	std::cout<<"Visualizing Data"<<std::endl;
-	CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
-	UInt32 rows = rootCell->getMaximumRow();
-	UInt32 cols = rootCell->getMaximumColumn();
-	std::cout<<"rows: "<<rows<<"\tcols: "<<cols<<std::endl;
-	for(UInt32 i=0;i<rows;i++)
-	{
-		for(UInt32 j=0;j<cols;j++)
-		{
-			CellRefPtr theRow = rootCell->getCell(i);
-			if(theRow)
-			{	
-				CellRefPtr theCell = theRow->getCell(j);
-				if(theCell)
-				{
-					std::string theString = boost::any_cast<std::string>(theCell->getValue());
-					std::cout<<theString<<"\t";
-				}
-			}
-		}
-		std::cout<<"\n";
-	}
-	*/
 	create3DScene(ExampleTableDomArea,mgr,scene,TutorialWindow);
 
-	//mgr->getCamera()->setBeacon(createCameraBeacon(scene));
 	mgr->showAll();
 }
 
@@ -819,19 +1103,11 @@ void handleviewLargestClusterButtonAction(ActionEventDetails* const details)
 	detailsTextDOMArea->write("Number of nodes:" + biggestClusterNoOfNodesS + "\r\n");
 	detailsTextDOMArea->write("The Nodes:\r\n");
 
-	/*std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[biggestCluster];
-	for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
-	{
-		std::string theNodeS = theRowItr->first;
-		detailsTextDOMArea->write(theNodeS+"\r\n");
-		NodeRefPtr theNode = theRowItr->second;
-		dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
-		highlightedNodes.push_back(theNode);
-	}*/
 	std::vector<node> result = get_by_clusterID(nodeDetailsTable,biggestCluster);
 	for(UInt32 i=0;i<result.size();i++)
 	{
 		detailsTextDOMArea->write(result[i].label+"\r\n");
+		// TODO : need to deal with the case when materialGroup is the core
 		dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
 		highlightedNodes.push_back(result[i].theNode);
 	}
@@ -857,16 +1133,7 @@ void handleviewSmallestClusterButtonAction(ActionEventDetails* const details)
 
 	detailsTextDOMArea->write("The Nodes:\r\n");
 
-	/*std::map<std::string,NodeRefPtr> theRow = tableToNodesMap[smallestCluster];
-	for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
-	{
-		std::string theNodeS = theRowItr->first;
-		detailsTextDOMArea->write(theNodeS+"\r\n");
-		NodeRefPtr theNode = theRowItr->second;
-		dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
-		highlightedNodes.push_back(theNode);
-	}*/
-
+	
 	std::vector<node> result = get_by_clusterID(nodeDetailsTable,smallestCluster);
 	for(UInt32 i=0;i<result.size();i++)
 	{
@@ -916,16 +1183,6 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 		detailsTextDOMArea->write("Number of nodes:" + theClusterNoOfNodesS + "\r\n");
 
 		detailsTextDOMArea->write("The Nodes:\r\n");
-
-		
-		/*for(std::map<std::string,NodeRefPtr>::const_iterator theRowItr(theRow.begin());theRowItr != theRow.end();theRowItr++)
-		{
-			std::string theNodeS = theRowItr->first;
-			detailsTextDOMArea->write(theNodeS+"\r\n");
-			NodeRefPtr theNode = theRowItr->second;
-			dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
-			highlightedNodes.push_back(theNode);
-		}*/
 
 		for(UInt32 i=0;i<result.size();i++)
 		{
@@ -1096,8 +1353,19 @@ int main(int argc, char **argv)
         TutorialWindow->connectMouseDragged(boost::bind(mouseDragged, _1, &sceneManager));
 
 
+		_Font = UIFont::create();
+		_Font->setFamily("SANS");
+		_Font->setGap(1);
+		_Font->setGlyphPixelSize(12);
+		_Font->setSize(5);
+		_Font->setTextureWidth(0);
+		_Font->setStyle(TextFace::STYLE_PLAIN);
+
+		createMenuBar();
+
         // Tell the Manager what to manage
         sceneManager.setWindow(TutorialWindow);
+
 
 		//NodeRefPtr TorusGeometryNode = makeTorus(.5, 2, 16, 16);
 		populatePoints();
@@ -1115,22 +1383,12 @@ int main(int argc, char **argv)
         LookAndFeelManager::the()->getLookAndFeel()->init();
 
 			    
-		ColorLayerRefPtr ExamplePanelBackground1 = ColorLayer::create();
-        ExamplePanelBackground1->setColor(Color4f(0.0,0.0,0.0,1.0));
-
-	    LineBorderRefPtr ExamplePanelBorder1 = LineBorder::create();
-        ExamplePanelBorder1->setColor(Color4f(0.9, 0.9, 0.9, 1.0));
-        ExamplePanelBorder1->setWidth(3);
-		
+	
 		TableDomAreaRefPtr ExampleTableDomArea = TableDomArea::create();
 		ExampleTableDomArea->setPreferredSize(Vec2f(300,200));
-        ColorLayerRefPtr TableDomBg = ColorLayer::create();
-        TableDomBg->setColor(Color4f(0.95f,0.95f,0.95f,1.0f));
-        ExampleTableDomArea->setBackgrounds(TableDomBg);
 	    ExampleTableDomArea->loadFile(BoostPath("D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv"));
 		ScrollPanelRefPtr TableAreaScrollPanel = ScrollPanel::create();
         TableAreaScrollPanel->setPreferredSize(Vec2f(200,200));
-        //TableAreaScrollPanel->setHorizontalResizePolicy(ScrollPanel::RESIZE_TO_VIEW);
 	    TableAreaScrollPanel->setViewComponent(ExampleTableDomArea);
 
 
@@ -1149,32 +1407,6 @@ int main(int argc, char **argv)
 		tableLabel->setPreferredSize(Vec2f(100, 50));
 		tableLabel->setText("Cluster Data");
 
-
-		LabelRefPtr noteLabel = Label::create();
-		noteLabel->setMinSize(Vec2f(50, 25));
-        noteLabel->setMaxSize(Vec2f(200, 100));
-		noteLabel->setPreferredSize(Vec2f(100, 50));
-		noteLabel->setText("Notepad");
-		
-
-		AdvancedTextDomAreaRefPtr theTextEditor = AdvancedTextDomArea::create();
-	    theTextEditor->setPreferredSize(Vec2f(200,200));
-		theTextEditor->setText("Type your observations here");
-
-		ScrollPanelRefPtr theTextEditorScrollPanel = ScrollPanel::create();
-        theTextEditorScrollPanel->setPreferredSize(Vec2f(200,200));
-	    theTextEditorScrollPanel->setViewComponent(theTextEditor);
-
-        
-
-		ButtonRefPtr SaveButton = Button::create();
-	    SaveButton->setMinSize(Vec2f(50, 25));
-        SaveButton->setMaxSize(Vec2f(200, 100));
-        SaveButton->setPreferredSize(Vec2f(100, 50));
-        SaveButton->setToolTipText("Click to save the currently opened file");
-        SaveButton->setText("Save Note");
-        SaveButton->connectActionPerformed(boost::bind(handleSaveButtonAction, _1, TutorialWindow.get(),theTextEditor.get()));
-
 		ButtonRefPtr VisualizeButton = Button::create();
 	    VisualizeButton->setMinSize(Vec2f(50, 25));
         VisualizeButton->setMaxSize(Vec2f(200, 100));
@@ -1182,8 +1414,6 @@ int main(int argc, char **argv)
         VisualizeButton->setToolTipText("Click to visualize the data");
         VisualizeButton->setText("Visualize Data");
 		VisualizeButton->connectActionPerformed(boost::bind(handleVisualizeButtonAction, _1, TutorialWindow.get(), ExampleTableDomArea.get(),&sceneManager,scene.get()));
-
-
 	
 		FlowLayoutRefPtr PanelFlowLayout = OSG::FlowLayout::create();
 		PanelFlowLayout->setHorizontalGap(3);
@@ -1193,9 +1423,6 @@ int main(int argc, char **argv)
 		ExampleSplitPanelPanel1->pushToChildren(LoadButton);
 		ExampleSplitPanelPanel1->pushToChildren(tableLabel);
 		ExampleSplitPanelPanel1->pushToChildren(TableAreaScrollPanel);
-		ExampleSplitPanelPanel1->pushToChildren(noteLabel);
-		ExampleSplitPanelPanel1->pushToChildren(theTextEditorScrollPanel);
-		ExampleSplitPanelPanel1->pushToChildren(SaveButton);
 		ExampleSplitPanelPanel1->pushToChildren(VisualizeButton);
 		ExampleSplitPanelPanel1->setLayout(PanelFlowLayout);
 
@@ -1208,10 +1435,11 @@ int main(int argc, char **argv)
 		SplitPanelRefPtr ExampleSplitPanel2 = OSG::SplitPanel::create();
 		ExampleSplitPanel2->setConstraints(ExampleSplitPanel2Constraints);
 		ExampleSplitPanel2->setMaxComponent(ExampleSplitPanelPanel2);
-		ExampleSplitPanel2->setDividerPosition(.75); // this is a percentage
+		ExampleSplitPanel2->setDividerPosition(.80); // this is a percentage
 		ExampleSplitPanel2->setDividerSize(5);
-		ExampleSplitPanel2->setMaxDividerPosition(0.90);
-		ExampleSplitPanel2->setMinDividerPosition(0.60);
+		ExampleSplitPanel2->setExpandable(false);
+		//ExampleSplitPanel2->setMaxDividerPosition(0.80);
+		//ExampleSplitPanel2->setMinDividerPosition(0.80);
 
 
 		BorderLayoutRefPtr MainInternalWindowLayout = OSG::BorderLayout::create();
@@ -1225,12 +1453,11 @@ int main(int argc, char **argv)
 		ExampleSplitPanel->setMinComponent(ExampleSplitPanelPanel1);
 		ExampleSplitPanel->setMaxComponent(ExampleSplitPanel2);
 		
-		// ExampleSplitPanel->setOrientation(SplitPanel::VERTICAL_ORIENTATION);
-		ExampleSplitPanel->setDividerPosition(.2); // this is a percentage
+		ExampleSplitPanel->setDividerPosition(.20); // this is a percentage
 		ExampleSplitPanel->setDividerSize(5);
-		// ExampleSplitPanel->setExpandable(false);
-		ExampleSplitPanel->setMaxDividerPosition(0.2);
-		ExampleSplitPanel->setMinDividerPosition(0.2);
+		ExampleSplitPanel->setExpandable(false);
+		//ExampleSplitPanel->setMaxDividerPosition(0.20);
+		//ExampleSplitPanel->setMinDividerPosition(0.20);
 
 		// Create The Main InternalWindow
 		// Create Background to be used with the Main InternalWindow
@@ -1240,9 +1467,10 @@ int main(int argc, char **argv)
 		InternalWindowRefPtr MainInternalWindow = OSG::InternalWindow::create();
 		MainInternalWindow->pushToChildren(ExampleSplitPanel);
 		MainInternalWindow->setLayout(MainInternalWindowLayout);
-		MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
+		MainInternalWindow->setBackgrounds(NULL);
 		MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
-		MainInternalWindow->setScalingInDrawingSurface(Vec2f(1.0f,1.0f));
+		MainInternalWindow->setScalingInDrawingSurface(Vec2f(1.f,1.f));
+		MainInternalWindow->setMenuBar(_MainMenuBar);
 		MainInternalWindow->setDrawTitlebar(false);
 		MainInternalWindow->setResizable(false);
 		MainInternalWindow->setAllInsets(5);
@@ -1256,6 +1484,8 @@ int main(int argc, char **argv)
     	
 	    TutorialDrawingSurface->openWindow(MainInternalWindow);
 
+		setNotepadWindowVisible(true,TutorialDrawingSurface.get(),TutorialWindow.get());
+
         // Create the UI Foreground Object
         UIForegroundRefPtr TutorialUIForeground = UIForeground::create();
 
@@ -1267,14 +1497,6 @@ int main(int argc, char **argv)
         TutorialViewport = sceneManager.getWindow()->getPort(0);
         TutorialViewport->addForeground(TutorialUIForeground);
     		
-		_Font = UIFont::create();
-		_Font->setFamily("SANS");
-		_Font->setGap(1);
-		_Font->setGlyphPixelSize(12);
-		_Font->setSize(5);
-		_Font->setTextureWidth(0);
-		_Font->setStyle(TextFace::STYLE_PLAIN);
-
 
         // Show the whole Scene
         sceneManager.showAll();
@@ -1282,14 +1504,16 @@ int main(int argc, char **argv)
 
     	
         //Open Window
-        Vec2f WinSize(TutorialWindow->getDesktopSize() * 0.85f);
+        Vec2f WinSize(TutorialWindow->getDesktopSize());
         Pnt2f WinPos((TutorialWindow->getDesktopSize() - WinSize) *0.5);
         TutorialWindow->openWindow(WinPos,
                                    WinSize,
                                    "VizTool");
-        TutorialWindow->connectKeyTyped(boost::bind(keyTyped, _1,&sceneManager,ExampleSplitPanel.get()));
+        TutorialWindow->connectKeyTyped(boost::bind(keyTyped, _1,&sceneManager,ExampleSplitPanel.get(),TutorialWindow.get(),TutorialDrawingSurface.get()));
 
         commitChanges();
+
+		xmlExportScene();
 
         //Enter main Loop
         TutorialWindow->mainLoop();
