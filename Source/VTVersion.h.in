@@ -1,0 +1,63 @@
+//Version definitions for VizTool
+
+#ifndef _VTVERSION_H_
+#define _VTVERSION_H_
+
+#include <OpenSG/OSGConfig.h>
+#include <OpenSG/OSGBaseTypes.h>
+#include <string>
+
+inline
+::OSG::UInt32 getVizToolMajorVersion(void)
+{
+	return @VIZTOOL_MAJOR_VERSION@;
+}
+
+inline
+::OSG::UInt32 getVizToolMinorVersion(void)
+{
+	return @VIZTOOL_MINOR_VERSION@;
+}
+
+inline
+::OSG::UInt32 getVizToolPatchVersion(void)
+{
+	return @VIZTOOL_PATCH_VERSION@;
+}
+
+inline
+std::string getVizToolVersion(void)
+{
+	return "@VIZTOOL_VERSION@";
+}
+
+inline
+std::string getVizToolBuildType(void)
+{
+#ifdef WIN32
+	return CMAVT_INTDIR;
+#else
+	return "@VIZTOOL_BUILD_TYPE@";
+#endif
+}
+
+inline
+std::string getVizToolBuildRepositoryRevision(void)
+{
+	return "@VIZTOOL_GIT_COMMIT@";
+}
+
+inline
+std::string getVizToolAuthors(void)
+{
+	return "@VIZTOOL_AUTHORS@";
+}
+
+inline
+std::string getVizToolWebsite(void)
+{
+	return "@VIZTOOL_WEBSITE@";
+}
+
+#endif
+

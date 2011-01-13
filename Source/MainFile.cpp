@@ -210,7 +210,13 @@ UIFontRefPtr _Font;
 AdvancedTextDomAreaRefPtr detailsTextDOMArea;
 InternalWindowRefPtr NotepadInternalWindow;
 
-// The Menubar Declarations
+
+bool NotepadVisible;
+
+ChunkMaterialRefPtr createGreenMaterial(void);
+ChunkMaterialRefPtr createYellowMaterial(void);
+
+		// The Menubar Declarations
 MenuBarRefPtr	_MainMenuBar;
 
 // The Menus Declarations
@@ -236,12 +242,6 @@ MenuItemRefPtr _PearsonViewItem;
 // The Export Menu Items Declarations
 MenuItemRefPtr _ExportSelectedItem;
 
-bool NotepadVisible;
-
-ChunkMaterialRefPtr createGreenMaterial(void);
-ChunkMaterialRefPtr createYellowMaterial(void);
-
-
 void handleBasicAction(ActionEventDetails* const details)
 {
     if(details->getSource() == _ExitItem)
@@ -253,130 +253,8 @@ void handleBasicAction(ActionEventDetails* const details)
 void createMenuBar(void)
 {
 	
-	// The Project Menu Items Definitions
-	_NewProjectItem = MenuItem::create();				
-	_NewProjectItem->setFont(_Font);
-    _NewProjectItem->setText("New Project");
-	_NewProjectItem->setAcceleratorKey(KeyEventDetails::KEY_N);
-    _NewProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _NewProjectItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	_LoadProjectItem = MenuItem::create();				
-	_LoadProjectItem->setFont(_Font);
-    _LoadProjectItem->setText("Load Dataset");
-	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_L);
-    _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_L);
-	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	_SaveProjectItem = MenuItem::create();				
-	_SaveProjectItem->setFont(_Font);
-    _SaveProjectItem->setText("Load Dataset");
-	_SaveProjectItem->setAcceleratorKey(KeyEventDetails::KEY_S);
-    _SaveProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _SaveProjectItem->setMnemonicKey(KeyEventDetails::KEY_S);
-	_SaveProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	_LoadDataSetItem = MenuItem::create();				
-	_LoadDataSetItem->setFont(_Font);
-    _LoadDataSetItem->setText("Load Dataset");
-	_LoadDataSetItem->setAcceleratorKey(KeyEventDetails::KEY_L);
-    _LoadDataSetItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _LoadDataSetItem->setMnemonicKey(KeyEventDetails::KEY_L);
-	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	_ExitItem = MenuItem::create();				
-    _ExitItem->setText("Exit");
-	_ExitItem->setFont(_Font);
-    _ExitItem->setAcceleratorKey(KeyEventDetails::KEY_Q);
-    _ExitItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _ExitItem->setMnemonicKey(KeyEventDetails::KEY_Q);
-	_ExitItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-	
-	// The View Menu Items Definitions
-	_NotepadItem = MenuItem::create();				
-    _NotepadItem->setText("View Notepad");
-	_NotepadItem->setFont(_Font);
-    _NotepadItem->setAcceleratorKey(KeyEventDetails::KEY_N);
-    _NotepadItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _NotepadItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_NotepadItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	// The Visualization Menu Items Definitions
-	_3dBarsItem = MenuItem::create();				
-    _3dBarsItem->setText("3D Bars");
-	_3dBarsItem->setFont(_Font);
-    _3dBarsItem->setAcceleratorKey(KeyEventDetails::KEY_B);
-    _3dBarsItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _3dBarsItem->setMnemonicKey(KeyEventDetails::KEY_B);
-	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-	
-	_PearsonViewItem = MenuItem::create();				
-    _PearsonViewItem->setText("Pearson Visualization");
-	_PearsonViewItem->setFont(_Font);
-    _PearsonViewItem->setAcceleratorKey(KeyEventDetails::KEY_P);
-    _PearsonViewItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _PearsonViewItem->setMnemonicKey(KeyEventDetails::KEY_P);
-	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	// The Export Menu Items Definitions
-	_ExportSelectedItem = MenuItem::create();				
-    _ExportSelectedItem->setText("Export Selected Nodes");
-	_ExportSelectedItem->setFont(_Font);
-    _ExportSelectedItem->setAcceleratorKey(KeyEventDetails::KEY_N);
-    _ExportSelectedItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
-
-	// The Project Menu Definition
-    _ProjectMenu = Menu::create();
-	_ProjectMenu->setFont(_Font);
-	_ProjectMenu->setText("Project");
-	_ProjectMenu->setMnemonicKey(KeyEventDetails::KEY_F);
-	// Addition of the Project Menu Items 
-	_ProjectMenu->addItem(_NewProjectItem);
-	_ProjectMenu->addItem(_LoadProjectItem);
-	_ProjectMenu->addItem(_SaveProjectItem);
-	_ProjectMenu->addSeparator();
-    _ProjectMenu->addItem(_LoadDataSetItem);
-    _ProjectMenu->addSeparator();
-	_ProjectMenu->addItem(_ExitItem);
-    
-	// The View Menu Definition
-    _ViewMenu = Menu::create();
-	_ViewMenu->setText("View");
-	_ViewMenu->setFont(_Font);
-    _ViewMenu->setMnemonicKey(KeyEventDetails::KEY_I);
-	// Addition of the View Menu Items 
-    _ViewMenu->addItem(_NotepadItem);
-    
-    // The Visualization Menu Definition
-    _VisualizationMenu = Menu::create();
-	_VisualizationMenu->setText("Visualization");
-	_VisualizationMenu->setFont(_Font);
-    _VisualizationMenu->setMnemonicKey(KeyEventDetails::KEY_Z);
-	// Addition of the Visualization Menu Items 
-    _VisualizationMenu->addItem(_3dBarsItem);
-	_VisualizationMenu->addItem(_PearsonViewItem);
-    
-	// The Export Menu Definition
-    _ExportMenu = Menu::create();
-	_ExportMenu->setText("Export");
-	_ExportMenu->setFont(_Font);
-    _ExportMenu->setMnemonicKey(KeyEventDetails::KEY_X);
-	// Addition of the Export Menu Items 
-    _ExportMenu->addItem(_ExportSelectedItem);
-    
-
-	// The Main Menu Bar Definitions
-	_MainMenuBar = MenuBar::create();
-    _MainMenuBar->addMenu(_ProjectMenu);
-	_MainMenuBar->addMenu(_ViewMenu);
-	_MainMenuBar->addMenu(_VisualizationMenu);
-	_MainMenuBar->addMenu(_ExportMenu);
-	
 }
+
 void xmlExportScene()
 {
     rapidxml::xml_document<> doc;
@@ -1459,6 +1337,120 @@ int main(int argc, char **argv)
 		//ExampleSplitPanel->setMaxDividerPosition(0.20);
 		//ExampleSplitPanel->setMinDividerPosition(0.20);
 
+	
+	// The Project Menu Items Definitions
+	_NewProjectItem = MenuItem::create();				
+    _NewProjectItem->setText("New Project");
+	_NewProjectItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _NewProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _NewProjectItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_LoadProjectItem = MenuItem::create();				
+    _LoadProjectItem->setText("Load Project");
+	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_O);
+    _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_O);
+	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_SaveProjectItem = MenuItem::create();				
+    _SaveProjectItem->setText("Save Project");
+	_SaveProjectItem->setAcceleratorKey(KeyEventDetails::KEY_S);
+    _SaveProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _SaveProjectItem->setMnemonicKey(KeyEventDetails::KEY_S);
+	_SaveProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_LoadDataSetItem = MenuItem::create();				
+    _LoadDataSetItem->setText("Load Dataset");
+	_LoadDataSetItem->setAcceleratorKey(KeyEventDetails::KEY_L);
+    _LoadDataSetItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _LoadDataSetItem->setMnemonicKey(KeyEventDetails::KEY_L);
+	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	_ExitItem = MenuItem::create();				
+    _ExitItem->setText("Exit");
+    _ExitItem->setAcceleratorKey(KeyEventDetails::KEY_X);
+    _ExitItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _ExitItem->setMnemonicKey(KeyEventDetails::KEY_Q);
+	_ExitItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	
+	// The View Menu Items Definitions
+	_NotepadItem = MenuItem::create();				
+    _NotepadItem->setText("View Notepad");
+    _NotepadItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _NotepadItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _NotepadItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_NotepadItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Visualization Menu Items Definitions
+	_3dBarsItem = MenuItem::create();				
+    _3dBarsItem->setText("3D Bars");
+    _3dBarsItem->setAcceleratorKey(KeyEventDetails::KEY_B);
+    _3dBarsItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _3dBarsItem->setMnemonicKey(KeyEventDetails::KEY_B);
+	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	
+	_PearsonViewItem = MenuItem::create();				
+    _PearsonViewItem->setText("Pearson Visualization");
+    _PearsonViewItem->setAcceleratorKey(KeyEventDetails::KEY_P);
+    _PearsonViewItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _PearsonViewItem->setMnemonicKey(KeyEventDetails::KEY_P);
+	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Export Menu Items Definitions
+	_ExportSelectedItem = MenuItem::create();				
+    _ExportSelectedItem->setText("Export Selected Nodes");
+    _ExportSelectedItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _ExportSelectedItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
+    _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_N);
+	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+
+	// The Project Menu Definition
+    _ProjectMenu = Menu::create();
+	_ProjectMenu->setText("Project");
+	_ProjectMenu->setMnemonicKey(KeyEventDetails::KEY_F);
+	// Addition of the Project Menu Items 
+	_ProjectMenu->addItem(_NewProjectItem);
+	_ProjectMenu->addItem(_LoadProjectItem);
+	_ProjectMenu->addItem(_SaveProjectItem);
+	_ProjectMenu->addSeparator();
+    _ProjectMenu->addItem(_LoadDataSetItem);
+    _ProjectMenu->addSeparator();
+	_ProjectMenu->addItem(_ExitItem);
+    
+	// The View Menu Definition
+    _ViewMenu = Menu::create();
+	_ViewMenu->setText("View");
+    _ViewMenu->setMnemonicKey(KeyEventDetails::KEY_I);
+	// Addition of the View Menu Items 
+    _ViewMenu->addItem(_NotepadItem);
+    
+    // The Visualization Menu Definition
+    _VisualizationMenu = Menu::create();
+	_VisualizationMenu->setText("Visualization");
+    _VisualizationMenu->setMnemonicKey(KeyEventDetails::KEY_Z);
+	// Addition of the Visualization Menu Items 
+    _VisualizationMenu->addItem(_3dBarsItem);
+	_VisualizationMenu->addItem(_PearsonViewItem);
+    
+	// The Export Menu Definition
+    _ExportMenu = Menu::create();
+	_ExportMenu->setText("Export");
+    _ExportMenu->setMnemonicKey(KeyEventDetails::KEY_X);
+	// Addition of the Export Menu Items 
+    _ExportMenu->addItem(_ExportSelectedItem);
+
+	
+	// The Main Menu Bar Definitions
+	_MainMenuBar = MenuBar::create();
+	
+    _MainMenuBar->addMenu(_ProjectMenu);
+	_MainMenuBar->addMenu(_ViewMenu);
+	_MainMenuBar->addMenu(_VisualizationMenu);
+	_MainMenuBar->addMenu(_ExportMenu);
+
+
+
 		// Create The Main InternalWindow
 		// Create Background to be used with the Main InternalWindow
 		ColorLayerRefPtr MainInternalWindowBackground = OSG::ColorLayer::create();
@@ -1467,7 +1459,7 @@ int main(int argc, char **argv)
 		InternalWindowRefPtr MainInternalWindow = OSG::InternalWindow::create();
 		MainInternalWindow->pushToChildren(ExampleSplitPanel);
 		MainInternalWindow->setLayout(MainInternalWindowLayout);
-		MainInternalWindow->setBackgrounds(NULL);
+		MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
 		MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));
 		MainInternalWindow->setScalingInDrawingSurface(Vec2f(1.f,1.f));
 		MainInternalWindow->setMenuBar(_MainMenuBar);
