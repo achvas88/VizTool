@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="PanelListComponentGenerator"
+	parent="DefaultListComponentGenerator"
+    library="VizTool"
+    pointerfieldtypes="both"
+	structure="concrete"
+    systemcomponent="false"
+    parentsystemcomponent="true"
+    decoratable="false"
+    useLocalIncludes="true"
+    isNodeCore="false"
+    authors="Achyuthan Vasanth (achvas88@gmail.com)                        "
+>
+A PanelListComponentGenerator.
+
+</FieldContainer>
