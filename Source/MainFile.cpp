@@ -6,7 +6,7 @@
 #include "OSGTransform.h"
 #include "OSGTypedGeoVectorProperty.h"
 #include "OSGTypedGeoIntegralProperty.h"
-
+#include "OSGMatrix.h"
 // Methods to create simple geometry: boxes, spheres, tori etc.
 #include "OSGSimpleGeometry.h"
 
@@ -64,6 +64,7 @@
 #include <OSGMenuBar.h>
 
 #include <OSGMaterialGroup.h>
+#include <fstream>
 
 #include "rapidxml.h"
 #include "rapidxml_iterators.h"
@@ -82,11 +83,17 @@
 #include <iterator>
 #include <string>
 
+#define MAXCUBESIZE 625.0
+
 using boost::multi_index_container;
 using namespace boost::multi_index;
 
+
+
 // Activate the OpenSG namespace
 OSG_USING_NAMESPACE
+
+
 
 struct node
 {
@@ -195,8 +202,10 @@ void display(SimpleSceneManager *mgr);
 void reshape(Vec2f Size, SimpleSceneManager *mgr);
 
 std::map< Int32,Pnt3f > cubePoints;
-static float cubeSize = 25.f;
+float cubeSize = 25.f;
 enum cameraManipulation {FROM,AT,BOTH};
+enum modes {THE3DBARS,PEARSON,RECTANGLE};
+static int theMode = THE3DBARS;
 node_set nodeDetailsTable;
 NodeRefPtr allTranNode;
 static Int32 biggestCluster = 0;
@@ -242,37 +251,115 @@ MenuItemRefPtr _PearsonViewItem;
 // The Export Menu Items Declarations
 MenuItemRefPtr _ExportSelectedItem;
 
-void handleBasicAction(ActionEventDetails* const details)
-{
-    if(details->getSource() == _ExitItem)
-    {
-		dynamic_cast<WindowEventProducer*>(details->getSource())->closeWindow();
-	}
-}
+void setNotepadWindowVisible(bool isVisible, UIDrawingSurface* const NotepadDrawingSurface, WindowEventProducer* const TutorialWindow);
+bool isNotepadWindowVisible(void);
+void xmlExportScene(WindowEventProducer* const TutorialWindow);
 
-void createMenuBar(void)
+// load project
+//void GLViewport::set(const Matrix& m)
+//{
+//	_Navigator.set(m);
+//  _Navigator.updateCameraTransformation();
+//}
+
+void handleBasicAction(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow,UIDrawingSurface* const TutorialDrawingSurface)
 {
+
+	if(details->getSource() == _ExitItem)
+    {
+		TutorialWindow->closeWindow();
+	}
+	else if(details->getSource() == _PearsonViewItem)
+	{
+		theMode = PEARSON;
+		std::cout<<"\nView Mode changed to PEARSON\n";
+	}
+	else if(details->getSource() == _3dBarsItem)
+	{
+		theMode = THE3DBARS;
+		std::cout<<"\nView Mode changed to THE3DBARS\n";
+	}
+	else if(details->getSource() == _NotepadItem)
+	{
+		if(isNotepadWindowVisible() == true)
+		{
+			setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
+			_NotepadItem->setText("Show Notepad");
+		}
+		else
+		{
+			setNotepadWindowVisible(true,TutorialDrawingSurface,TutorialWindow);
+			_NotepadItem->setText("Hide Notepad");
+		}
+	}
+	else if(details->getSource() == _ExportSelectedItem)
+	{
+		xmlExportScene(TutorialWindow);
+	}
 	
 }
 
-void xmlExportScene()
+
+void xmlExportScene(WindowEventProducer* const TutorialWindow)
 {
-    rapidxml::xml_document<> doc;
+	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+	Filters.push_back(WindowEventProducer::FileDialogFilter("xml files","xml"));
+	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
 
-    // xml declaration
-    rapidxml::xml_node<>* decl = doc.allocate_node(rapidxml::node_declaration);
-    decl->append_attribute(doc.allocate_attribute("version", "1.0"));
-    decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
-    doc.append_node(decl);
+	BoostPath SavePath = TutorialWindow->saveFileDialog("Save Note Window",
+														Filters,
+														std::string("newFile.xml"),
+														BoostPath(".."),
+														true);
+	if(SavePath.string() != "")
+    {
+		std::ofstream ofs(SavePath.string().c_str(), std::ios::binary);
+		if(!ofs)
+		{
+			std::cout<<"Error : xmlExportScene() - Not able to open file"<<std::endl;
+		}
+		else
+		{
+			rapidxml::xml_document<> doc;
 
-	// root node
-    rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
-                                                   "VizTool Scene");
-    root->append_attribute(doc.allocate_attribute("version", "1.0"));
-    doc.append_node(root);
+			// xml declaration
+			rapidxml::xml_node<>* decl = doc.allocate_node(rapidxml::node_declaration);
+			decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+			decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+			doc.append_node(decl);
 
-	rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+			// root node
+			rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
+														   "VizTool Scene");
+			root->append_attribute(doc.allocate_attribute("version", "1.0"));
+			doc.append_node(root);
 
+			for(UInt32 i=0;i<highlightedNodes.size();i++)
+			{
+				rapidxml::xml_node<>* thenode = doc.allocate_node(rapidxml::node_element,
+														   "Node");
+				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
+				std::cout<<"result.label : "<<result.label<<std::endl;
+				char *labl = doc.allocate_string(result.label.c_str());
+				thenode->append_attribute(doc.allocate_attribute("Label",labl));
+
+				std::string clusterIDS;
+				std::stringstream in;
+				in.clear();
+				in<<result.clusterID;
+				in>>clusterIDS;
+				char *cIDS = doc.allocate_string(clusterIDS.c_str());
+				std::cout<<"result.clusterID : "<<clusterIDS<<std::endl;
+				thenode->append_attribute(doc.allocate_attribute("clusterID",cIDS));
+				root->append_node(thenode);
+			}
+
+			rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+			//std::ostream& ostr(ofs);
+			rapidxml::print(static_cast<std::ostream&>(ofs), doc, rapidxml::print_newline_attributes);
+			ofs.close();
+		}
+	}
 }
 
 void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
@@ -283,14 +370,14 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
     }
 	if(e->getButton() == MouseEventDetails::BUTTON1)
     {
-		if(!(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CONTROL))
+		/*if(!(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CONTROL))
 		{
 			for(int i=0;i<highlightedNodes.size();i++)
 			{
 				dynamic_cast<Geometry*>(highlightedNodes[i]->getCore())->setMaterial(createGreenMaterial());
 			}
 			highlightedNodes.clear();
-		}
+		}*/
 
         Line ViewRay;
 
@@ -317,33 +404,40 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 				{
 					dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
 					highlightedNodes.push_back(theNode);
-					node result = get_by_theNode(nodeDetailsTable,theNode); 
-					std::stringstream in;
-					in<<result.clusterID;
-					std::string ins;
-					in>>ins;
-					detailsTextDOMArea->write("\r\n");
-					detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
-					detailsTextDOMArea->write("Label: " + result.label+"\r\n");
-					detailsTextDOMArea->write("_________________\r\n");
 				}
 			}
 			else
 			{
-				dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
-				highlightedNodes.push_back(theNode);
-				node result = get_by_theNode(nodeDetailsTable,theNode); 
-				detailsTextDOMArea->clear();
+				if(find(highlightedNodes.begin(),highlightedNodes.end(),theNode) ==  highlightedNodes.end())
+				{
+					dynamic_cast<Geometry*>(theNode->getCore())->setMaterial(createYellowMaterial());
+					highlightedNodes.push_back(theNode);
+				}
+			}
+			detailsTextDOMArea->clear();
+			for(UInt32 i=0;i<highlightedNodes.size();i++)
+			{
+				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
 				std::stringstream in;
 				in<<result.clusterID;
 				std::string ins;
 				in>>ins;
+				detailsTextDOMArea->write("\r\n");
 				detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
 				detailsTextDOMArea->write("Label: " + result.label+"\r\n");
 				detailsTextDOMArea->write("_________________\r\n");
 			}
 	    }
     }
+	if(e->getButton() == MouseEventDetails::BUTTON2)
+    {
+		detailsTextDOMArea->clear();
+		for(UInt32 i=0;i<highlightedNodes.size();i++)
+		{
+			dynamic_cast<Geometry*>(highlightedNodes[i]->getCore())->setMaterial(createGreenMaterial());
+		}
+		highlightedNodes.clear();
+	}
 }
 
 void mouseReleased(MouseEventDetails* const e, SimpleSceneManager *mgr)
@@ -600,14 +694,14 @@ void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel
     {
 		mgr->showAll();
     }
-	if(details->getKey() == KeyEventDetails::KEY_N && details->getModifiers() &
+	/*if(details->getKey() == KeyEventDetails::KEY_N && details->getModifiers() &
        KeyEventDetails::KEY_MODIFIER_COMMAND)
 	{
 		if(isNotepadWindowVisible() == true)
 			setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
 		else
 			setNotepadWindowVisible(true,TutorialDrawingSurface,TutorialWindow);
-	}
+	}*/
 	//mgr->redraw();
 	
 }
@@ -817,91 +911,102 @@ void create3DScene(TableDomArea* const ExampleTableDomArea,
 							Node* scene,
 							WindowEventProducer* const TutorialWindow)
 {
-	CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
-	Int32 rows = rootCell->getMaximumRow();
-	Int32 cols = rootCell->getMaximumColumn();
-
-	Matrix mat;
-	mat.setTranslate(-1* cubeSize/2.f, -1* rows * cubeSize/2.f ,-1* cubeSize/2.f);
-	TransformRefPtr allTranCore = Transform::create();
-	allTranCore->setMatrix(mat);
-    allTranNode = Node::create();
-	allTranNode->setCore(allTranCore);
-
-	for(Int32 i=0;i<rows;i++)
+	if(theMode == THE3DBARS)
 	{
+		CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
+		Int32 rows = rootCell->getMaximumRow();
+		Int32 cols = rootCell->getMaximumColumn();
+
+		cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
 		Matrix mat;
-		mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) + ((rows - 1 - i) * 3.0),0.0);
-		TransformRefPtr theRowTranCore = Transform::create();
-		theRowTranCore->setMatrix(mat);
-	    NodeRefPtr theRowTranNode = Node::create();
-		theRowTranNode->setCore(theRowTranCore);
+		mat.setTranslate(-1* cubeSize/2.f, -1* rows * cubeSize/2.f ,-1* cubeSize/2.f);
+		TransformRefPtr allTranCore = Transform::create();
+		allTranCore->setMatrix(mat);
+		allTranNode = Node::create();
+		allTranNode->setCore(allTranCore);
+
+		for(Int32 i=0;i<rows;i++)
+		{
+			Matrix mat;
+			mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) /*+ ((rows - 1 - i) * 3.0)*/,0.0);
+			TransformRefPtr theRowTranCore = Transform::create();
+			theRowTranCore->setMatrix(mat);
+			NodeRefPtr theRowTranNode = Node::create();
+			theRowTranNode->setCore(theRowTranCore);
 
 
-		int actual_colms = 0;
-		for(UInt32 j=0;j<cols;j++)
-		{	
-			CellRefPtr theRow = rootCell->getCell(i);
-			if(theRow)
-			{
-				CellRefPtr theCell = theRow->getCell(j);
-				if(theCell)
+			int actual_colms = 0;
+			for(UInt32 j=0;j<cols;j++)
+			{	
+				CellRefPtr theRow = rootCell->getCell(i);
+				if(theRow)
 				{
-					std::string theString = boost::any_cast<std::string>(theCell->getValue());
-					if(theString != "") actual_colms++;
-				}
-			}
-		}
-		if(actual_colms >= biggestClusterNoOfNodes) 
-		{
-			biggestClusterNoOfNodes = actual_colms;
-			biggestCluster = i;
-		}
-		if(actual_colms <= smallestClusterNoOfNodes) 
-		{
-			smallestClusterNoOfNodes = actual_colms;
-			smallestCluster = i;
-		}
-		if(actual_colms==0)actual_colms++;
-		Real32 column_width = cubeSize/actual_colms *1.f;
-
-		int count = 0;
-		for(UInt32 j=0;j<cols;j++)
-		{
-			CellRefPtr theRow = rootCell->getCell(i);
-			if(theRow)
-			{
-				CellRefPtr theCell = theRow->getCell(j);
-				if(theCell)
-				{
-					std::string theString = boost::any_cast<std::string>(theCell->getValue());
-					
-					if(theString != "")
+					CellRefPtr theCell = theRow->getCell(j);
+					if(theCell)
 					{
-						NodeRefPtr theCuboid = createCube(cubeSize,TutorialWindow);//	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
-						//dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
-						//tableToNodesMap[i][theString] = theCuboid;
-						nodeDetailsTable.insert(node(i,theString,theCuboid));
-
-						Matrix mat;
-						mat.setTranslate((count * cubeSize/*column_width*/) + (count * 3.0),0.0,0.0);
-						TransformRefPtr theCuboidTranCore = Transform::create();
-						theCuboidTranCore->setMatrix(mat);
-						NodeRefPtr theCuboidTranNode = Node::create();
-						theCuboidTranNode->setCore(theCuboidTranCore);
-
-						theCuboidTranNode->addChild(theCuboid);
-
-						theRowTranNode->addChild(theCuboidTranNode);
-						count++;
+						std::string theString = boost::any_cast<std::string>(theCell->getValue());
+						if(theString != "") actual_colms++;
 					}
 				}
 			}
+			if(actual_colms >= biggestClusterNoOfNodes) 
+			{
+				biggestClusterNoOfNodes = actual_colms;
+				biggestCluster = i;
+			}
+			if(actual_colms <= smallestClusterNoOfNodes) 
+			{
+				smallestClusterNoOfNodes = actual_colms;
+				smallestCluster = i;
+			}
+			if(actual_colms==0)actual_colms++;
+			Real32 column_width = cubeSize/actual_colms *1.f;
+
+			int count = 0;
+			for(UInt32 j=0;j<cols;j++)
+			{
+				CellRefPtr theRow = rootCell->getCell(i);
+				if(theRow)
+				{
+					CellRefPtr theCell = theRow->getCell(j);
+					if(theCell)
+					{
+						std::string theString = boost::any_cast<std::string>(theCell->getValue());
+						
+						if(theString != "")
+						{
+							NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
+							dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
+							//tableToNodesMap[i][theString] = theCuboid;
+							nodeDetailsTable.insert(node(i,theString,theCuboid));
+
+							Matrix mat;
+							mat.setTranslate((count * cubeSize/*column_width*/) /*+ (count * 3.0)*/,0.0,0.0);
+							TransformRefPtr theCuboidTranCore = Transform::create();
+							theCuboidTranCore->setMatrix(mat);
+							NodeRefPtr theCuboidTranNode = Node::create();
+							theCuboidTranNode->setCore(theCuboidTranCore);
+
+							theCuboidTranNode->addChild(theCuboid);
+
+							theRowTranNode->addChild(theCuboidTranNode);
+							count++;
+						}
+					}
+				}
+			}
+			allTranNode->addChild(theRowTranNode);
 		}
-		allTranNode->addChild(theRowTranNode);
+		scene->addChild(allTranNode);
 	}
-	scene->addChild(allTranNode);
-       
+	else if(theMode == PEARSON)
+	{
+		
+	}
+	else if(theMode == RECTANGLE)
+	{
+		
+	}
 }
 
 
@@ -1072,6 +1177,120 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 	}
 
 }
+void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, TableDomArea* ExampleTableDomArea,SimpleSceneManager* mgr)
+{
+	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+	Filters.push_back(WindowEventProducer::FileDialogFilter("VizTool project files","viz"));
+	Filters.push_back(WindowEventProducer::FileDialogFilter("All","*"));
+
+	BoostPath SavePath = TutorialWindow->saveFileDialog("Save Note Window",
+														Filters,
+														std::string("newProject.viz"),
+														BoostPath(".."),
+														true);
+	if(SavePath.string() != "")
+    {
+		std::ofstream ofs(SavePath.string().c_str(), std::ios::binary);
+		if(!ofs)
+		{
+			std::cout<<"Error : handleSaveProject() - Not able to open file"<<std::endl;
+		}
+		else
+		{
+			rapidxml::xml_document<> doc;
+
+			// xml declaration
+			rapidxml::xml_node<>* decl = doc.allocate_node(rapidxml::node_declaration);
+			decl->append_attribute(doc.allocate_attribute("version", "1.0"));
+			decl->append_attribute(doc.allocate_attribute("encoding", "utf-8"));
+			doc.append_node(decl);
+
+			// root node
+			rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
+														   "VizTool Scene");
+			root->append_attribute(doc.allocate_attribute("version", "1.0"));
+			doc.append_node(root);
+
+			rapidxml::xml_node<>* theModeNode = doc.allocate_node(rapidxml::node_element,"Mode");
+			std::string theModeS;
+			std::stringstream in;
+			in.clear();
+			in<<theMode;
+			in>>theModeS;
+			char *mS = doc.allocate_string(theModeS.c_str());
+			theModeNode->append_attribute(doc.allocate_attribute("ID",mS));
+			root->append_node(theModeNode);
+
+			// camera transformation export
+			Matrix cameraTransformation = dynamic_cast<Transform*>(mgr->getNavigator()->getViewport()->getCamera()->getBeacon()->getCore())->getMatrix();
+			
+			rapidxml::xml_node<>* theCameraTransNode = doc.allocate_node(rapidxml::node_element,"Camera");
+			std::string xS;
+			in.clear();
+			in<<cameraTransformation[0][0]<<",";
+			in<<cameraTransformation[0][1]<<",";
+			in<<cameraTransformation[0][2]<<",";
+			in<<cameraTransformation[0][3]<<",";
+			in<<cameraTransformation[1][0]<<",";
+			in<<cameraTransformation[1][1]<<",";
+			in<<cameraTransformation[1][2]<<",";
+			in<<cameraTransformation[1][3]<<",";
+			in<<cameraTransformation[2][0]<<",";
+			in<<cameraTransformation[2][1]<<",";
+			in<<cameraTransformation[2][2]<<",";
+			in<<cameraTransformation[2][3]<<",";
+			in<<cameraTransformation[3][0]<<",";
+			in<<cameraTransformation[3][1]<<",";
+			in<<cameraTransformation[3][2]<<",";
+			in<<cameraTransformation[3][3];
+			in>>xS;
+			char *xxS = doc.allocate_string(xS.c_str());
+			theCameraTransNode->append_attribute(doc.allocate_attribute("Matrix",xxS));
+			root->append_node(theCameraTransNode);
+			
+			// data table export - save a copy of the data table at the same location as the one given above
+			std::string tablePathS = "tableData.csv";
+			BoostPath tablePath = SavePath.remove_leaf() /= tablePathS;
+			ExampleTableDomArea->saveFile(tablePath);
+
+
+			rapidxml::xml_node<>* notepadVisibleNode = doc.allocate_node(rapidxml::node_element,"Notepad");
+			std::string visibleS;
+			in.clear();
+			in<<NotepadVisible;
+			in>>visibleS;
+			char *vS = doc.allocate_string(visibleS.c_str());
+			notepadVisibleNode->append_attribute(doc.allocate_attribute("visible",vS));
+			root->append_node(notepadVisibleNode);
+
+
+			for(UInt32 i=0;i<highlightedNodes.size();i++)
+			{
+				rapidxml::xml_node<>* thenode = doc.allocate_node(rapidxml::node_element,
+														   "Node");
+				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
+				std::cout<<"result.label : "<<result.label<<std::endl;
+				char *labl = doc.allocate_string(result.label.c_str());
+				thenode->append_attribute(doc.allocate_attribute("Label",labl));
+
+				std::string clusterIDS;
+				std::stringstream in;
+				in.clear();
+				in<<result.clusterID;
+				in>>clusterIDS;
+				char *cIDS = doc.allocate_string(clusterIDS.c_str());
+				std::cout<<"result.clusterID : "<<clusterIDS<<std::endl;
+				thenode->append_attribute(doc.allocate_attribute("clusterID",cIDS));
+				root->append_node(thenode);
+			}
+
+			rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+			//std::ostream& ostr(ofs);
+			rapidxml::print(static_cast<std::ostream&>(ofs), doc, rapidxml::print_newline_attributes);
+			ofs.close();
+		}
+	}
+}
 
 void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextField* nodeIDField)
 {
@@ -1220,6 +1439,9 @@ int main(int argc, char **argv)
         WindowEventProducerRecPtr TutorialWindow = createNativeWindow();
         TutorialWindow->initWindow();
 
+		// Create the Drawing Surface
+        UIDrawingSurfaceRefPtr TutorialDrawingSurface = UIDrawingSurface::create();
+
         // Create the SimpleSceneManager helper
 		SimpleSceneManager sceneManager;
         
@@ -1239,7 +1461,7 @@ int main(int argc, char **argv)
 		_Font->setTextureWidth(0);
 		_Font->setStyle(TextFace::STYLE_PLAIN);
 
-		createMenuBar();
+//		createMenuBar();
 
         // Tell the Manager what to manage
         sceneManager.setWindow(TutorialWindow);
@@ -1275,7 +1497,7 @@ int main(int argc, char **argv)
         LoadButton->setMaxSize(Vec2f(200, 100));
         LoadButton->setPreferredSize(Vec2f(200, 50));
         LoadButton->setToolTipText("Click to open a file browser window");
-        LoadButton->setText("Load Cluster File");
+        LoadButton->setText("Load Dataset");
 		LoadButton->connectActionPerformed(boost::bind(handleLoadButtonAction, _1, TutorialWindow.get(), ExampleTableDomArea.get()));
 
 
@@ -1283,7 +1505,7 @@ int main(int argc, char **argv)
 		tableLabel->setMinSize(Vec2f(50, 25));
         tableLabel->setMaxSize(Vec2f(200, 100));
 		tableLabel->setPreferredSize(Vec2f(100, 50));
-		tableLabel->setText("Cluster Data");
+		tableLabel->setText("Dataset");
 
 		ButtonRefPtr VisualizeButton = Button::create();
 	    VisualizeButton->setMinSize(Vec2f(50, 25));
@@ -1344,43 +1566,43 @@ int main(int argc, char **argv)
 	_NewProjectItem->setAcceleratorKey(KeyEventDetails::KEY_N);
     _NewProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _NewProjectItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	_LoadProjectItem = MenuItem::create();				
     _LoadProjectItem->setText("Load Project");
 	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_O);
     _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_O);
-	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	_SaveProjectItem = MenuItem::create();				
     _SaveProjectItem->setText("Save Project");
 	_SaveProjectItem->setAcceleratorKey(KeyEventDetails::KEY_S);
     _SaveProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _SaveProjectItem->setMnemonicKey(KeyEventDetails::KEY_S);
-	_SaveProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_SaveProjectItem->connectActionPerformed(boost::bind(handleSaveProject, _1,TutorialWindow.get(),ExampleTableDomArea.get(),&sceneManager));
 
 	_LoadDataSetItem = MenuItem::create();				
     _LoadDataSetItem->setText("Load Dataset");
 	_LoadDataSetItem->setAcceleratorKey(KeyEventDetails::KEY_L);
     _LoadDataSetItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _LoadDataSetItem->setMnemonicKey(KeyEventDetails::KEY_L);
-	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	_ExitItem = MenuItem::create();				
     _ExitItem->setText("Exit");
     _ExitItem->setAcceleratorKey(KeyEventDetails::KEY_X);
     _ExitItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _ExitItem->setMnemonicKey(KeyEventDetails::KEY_Q);
-	_ExitItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_ExitItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 	
 	// The View Menu Items Definitions
 	_NotepadItem = MenuItem::create();				
-    _NotepadItem->setText("View Notepad");
-    _NotepadItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _NotepadItem->setText("Show Notepad");
+    _NotepadItem->setAcceleratorKey(KeyEventDetails::KEY_T);
     _NotepadItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _NotepadItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_NotepadItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+    _NotepadItem->setMnemonicKey(KeyEventDetails::KEY_T);
+	_NotepadItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	// The Visualization Menu Items Definitions
 	_3dBarsItem = MenuItem::create();				
@@ -1388,22 +1610,22 @@ int main(int argc, char **argv)
     _3dBarsItem->setAcceleratorKey(KeyEventDetails::KEY_B);
     _3dBarsItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _3dBarsItem->setMnemonicKey(KeyEventDetails::KEY_B);
-	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 	
 	_PearsonViewItem = MenuItem::create();				
     _PearsonViewItem->setText("Pearson Visualization");
     _PearsonViewItem->setAcceleratorKey(KeyEventDetails::KEY_P);
     _PearsonViewItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _PearsonViewItem->setMnemonicKey(KeyEventDetails::KEY_P);
-	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	// The Export Menu Items Definitions
 	_ExportSelectedItem = MenuItem::create();				
     _ExportSelectedItem->setText("Export Selected Nodes");
-    _ExportSelectedItem->setAcceleratorKey(KeyEventDetails::KEY_N);
+    _ExportSelectedItem->setAcceleratorKey(KeyEventDetails::KEY_E);
     _ExportSelectedItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1));
+    _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_E);
+	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 
 	// The Project Menu Definition
     _ProjectMenu = Menu::create();
@@ -1469,14 +1691,13 @@ int main(int argc, char **argv)
 
     	  
 	
-        // Create the Drawing Surface
-        UIDrawingSurfaceRefPtr TutorialDrawingSurface = UIDrawingSurface::create();
+        
         TutorialDrawingSurface->setGraphics(TutorialGraphics);
         TutorialDrawingSurface->setEventProducer(TutorialWindow);
     	
 	    TutorialDrawingSurface->openWindow(MainInternalWindow);
 
-		setNotepadWindowVisible(true,TutorialDrawingSurface.get(),TutorialWindow.get());
+		//setNotepadWindowVisible(true,TutorialDrawingSurface.get(),TutorialWindow.get());
 
         // Create the UI Foreground Object
         UIForegroundRefPtr TutorialUIForeground = UIForeground::create();
@@ -1505,7 +1726,7 @@ int main(int argc, char **argv)
 
         commitChanges();
 
-		xmlExportScene();
+		
 
         //Enter main Loop
         TutorialWindow->mainLoop();
