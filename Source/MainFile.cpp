@@ -83,6 +83,9 @@
 #include <iterator>
 #include <string>
 
+#include <boost/foreach.hpp>
+#include <boost/tokenizer.hpp>
+
 #define MAXCUBESIZE 625.0
 
 using boost::multi_index_container;
@@ -218,7 +221,7 @@ ChunkMaterialRefPtr GreenBackgroundMaterial,YellowBackgroundMaterial;
 UIFontRefPtr _Font;
 AdvancedTextDomAreaRefPtr detailsTextDOMArea;
 InternalWindowRefPtr NotepadInternalWindow;
-
+static std::string datasetPath="";
 
 bool NotepadVisible;
 
@@ -330,7 +333,7 @@ void xmlExportScene(WindowEventProducer* const TutorialWindow)
 
 			// root node
 			rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
-														   "VizTool Scene");
+														   "VizToolProject");
 			root->append_attribute(doc.allocate_attribute("version", "1.0"));
 			doc.append_node(root);
 
@@ -724,6 +727,7 @@ void handleLoadButtonAction(ActionEventDetails* const details,
     if(FilesToOpen.size() > 0)
     {
 	    ExampleTableDomArea->loadFile(FilesToOpen[0]);
+		datasetPath = FilesToOpen[0].string();
     }
 }
 
@@ -1177,6 +1181,156 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 	}
 
 }
+
+void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, TableDomArea* ExampleTableDomArea,SimpleSceneManager* mgr, Node* scene,UIDrawingSurface* const TutorialDrawingSurface )
+{
+	std::vector<WindowEventProducer::FileDialogFilter> Filters;
+	Filters.push_back(WindowEventProducer::FileDialogFilter("Viztool Project Files","viz"));
+
+
+	std::vector<BoostPath> FilesToOpen;
+	FilesToOpen = TutorialWindow->openFileDialog("Open File Window",
+												Filters,
+												BoostPath(".."),
+												false);
+
+    if(FilesToOpen.size() > 0)
+    {
+	    //ExampleTableDomArea->loadFile(FilesToOpen[0]);
+		std::ifstream ifs(FilesToOpen[0].string().c_str());
+		std::string xmlString = "";
+		std::string line;
+		while(getline(ifs,line))xmlString += line + "\r\n";
+		std::vector<char> xml_copy(xmlString.begin(), xmlString.end());
+		xml_copy.push_back('\0');
+
+		rapidxml::xml_document<> doc;
+		doc.parse<rapidxml::parse_declaration_node | rapidxml::parse_no_data_nodes>(&xml_copy[0]);
+		rapidxml::xml_node<>* cur_node = doc.first_node("VizToolProject");
+
+		// setting the Mode
+		std::string modeString = cur_node->first_node("Mode")->first_attribute("ID")->value();
+		UInt32 modeVal;
+		std::stringstream is;
+		is<<modeString;
+		is>>modeVal;
+		theMode = modeVal;
+
+		// setting the notepad
+		std::string notepadString = cur_node->first_node("Notepad")->first_attribute("Visible")->value();
+		UInt32 notepadVal;
+		is.clear();
+		is<<notepadString;
+		is>>notepadVal;
+
+		if(notepadVal)
+		{
+			setNotepadWindowVisible(true,TutorialDrawingSurface,TutorialWindow);
+			_NotepadItem->setText("Hide Notepad");
+		}
+		else
+		{
+			setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
+			_NotepadItem->setText("Show Notepad");
+		}
+
+		// populating the table
+		std::string datapathString = cur_node->first_node("Dataset")->first_attribute("Path")->value();
+		BoostPath theDataPath(datapathString);
+		ExampleTableDomArea->loadFile(theDataPath);
+
+		// visualizing the data
+		handleVisualizeButtonAction(NULL,TutorialWindow,ExampleTableDomArea,mgr,scene);
+
+		// setting the camera beacon matrix
+		std::string matrixString = cur_node->first_node("Camera")->first_attribute("Matrix")->value();
+		Matrix m;
+		Real32 value;
+		UInt32 i=0,j=0;
+		
+		boost::char_separator<char> sep(",");
+		boost::tokenizer<boost::char_separator<char>> tokens(matrixString, sep);
+
+		std::stringstream ss;
+		std::cout<<std::endl;
+
+		BOOST_FOREACH(std::string t, tokens)
+		{
+			ss.clear();
+			ss<<t;
+			ss>>value;
+			m[i][j] = value;
+			j++;
+			if(j==4)
+			{
+			  i++;
+			  j=0;
+			}
+		}
+		std::cout<<std::endl;
+		dynamic_cast<Transform*>(mgr->getNavigator()->getViewport()->getCamera()->getBeacon()->getCore())->setMatrix(m);
+
+		
+		std::stringstream iss;
+		UInt32 clusterID;
+		std::string label;
+		std::string clusterIDS;
+
+		cur_node = cur_node->first_node("Node");
+
+		detailsTextDOMArea->clear();
+
+		do
+		{
+			if(!cur_node) 
+			{
+				std::cout<<"No more nodes"<<std::endl;
+				break;
+			}
+			label = cur_node->first_attribute("Label")->value();
+			clusterIDS = cur_node->first_attribute("ClusterID")->value();
+			
+			iss.clear();
+			iss<<clusterIDS;
+			iss>>clusterID;
+
+			// do some calculation for highlighting this node
+			std::vector<node> result = get_by_label(nodeDetailsTable,label);
+
+			if(result.size()<=0) 
+			{
+				detailsTextDOMArea->clear();
+				detailsTextDOMArea->write("handleLoadProject Error: Node not found\r\n");
+				break;
+			}
+			else
+			{
+				
+				for(UInt32 i=0;i<result.size();i++)
+				{
+					if(clusterID == result[i].clusterID)
+					{
+						char theClusterC[255];
+						sprintf(theClusterC,"%d",result[i].clusterID);
+						std::string theClusterS= theClusterC;
+
+						detailsTextDOMArea->write("\r\n");
+
+						detailsTextDOMArea->write("the Cluster:" + theClusterS + "\r\n");
+
+						dynamic_cast<Geometry*>(result[i].theNode->getCore())->setMaterial(createYellowMaterial());
+						highlightedNodes.push_back(result[i].theNode);
+
+						detailsTextDOMArea->write("_________________\r\n");
+						break;
+					}
+				}
+			}
+			cur_node = cur_node->next_sibling("Node");
+		}while(cur_node);
+	}
+}
+
 void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, TableDomArea* ExampleTableDomArea,SimpleSceneManager* mgr)
 {
 	std::vector<WindowEventProducer::FileDialogFilter> Filters;
@@ -1207,7 +1361,7 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 
 			// root node
 			rapidxml::xml_node<>* root = doc.allocate_node(rapidxml::node_element,
-														   "VizTool Scene");
+														   "VizToolProject");
 			root->append_attribute(doc.allocate_attribute("version", "1.0"));
 			doc.append_node(root);
 
@@ -1248,19 +1402,20 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 			theCameraTransNode->append_attribute(doc.allocate_attribute("Matrix",xxS));
 			root->append_node(theCameraTransNode);
 			
-			// data table export - save a copy of the data table at the same location as the one given above
-			std::string tablePathS = "tableData.csv";
-			BoostPath tablePath = SavePath.remove_leaf() /= tablePathS;
-			ExampleTableDomArea->saveFile(tablePath);
+			// data table export 
+			rapidxml::xml_node<>* theDatasetNode = doc.allocate_node(rapidxml::node_element,"Dataset");
+			char *dsS = doc.allocate_string(datasetPath.c_str());
+			theDatasetNode->append_attribute(doc.allocate_attribute("Path",dsS));
+			root->append_node(theDatasetNode);
 
-
+			
 			rapidxml::xml_node<>* notepadVisibleNode = doc.allocate_node(rapidxml::node_element,"Notepad");
 			std::string visibleS;
 			in.clear();
 			in<<NotepadVisible;
 			in>>visibleS;
 			char *vS = doc.allocate_string(visibleS.c_str());
-			notepadVisibleNode->append_attribute(doc.allocate_attribute("visible",vS));
+			notepadVisibleNode->append_attribute(doc.allocate_attribute("Visible",vS));
 			root->append_node(notepadVisibleNode);
 
 
@@ -1269,7 +1424,6 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 				rapidxml::xml_node<>* thenode = doc.allocate_node(rapidxml::node_element,
 														   "Node");
 				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
-				std::cout<<"result.label : "<<result.label<<std::endl;
 				char *labl = doc.allocate_string(result.label.c_str());
 				thenode->append_attribute(doc.allocate_attribute("Label",labl));
 
@@ -1279,8 +1433,7 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 				in<<result.clusterID;
 				in>>clusterIDS;
 				char *cIDS = doc.allocate_string(clusterIDS.c_str());
-				std::cout<<"result.clusterID : "<<clusterIDS<<std::endl;
-				thenode->append_attribute(doc.allocate_attribute("clusterID",cIDS));
+				thenode->append_attribute(doc.allocate_attribute("ClusterID",cIDS));
 				root->append_node(thenode);
 			}
 
@@ -1487,6 +1640,7 @@ int main(int argc, char **argv)
 		TableDomAreaRefPtr ExampleTableDomArea = TableDomArea::create();
 		ExampleTableDomArea->setPreferredSize(Vec2f(300,200));
 	    ExampleTableDomArea->loadFile(BoostPath("D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv"));
+		datasetPath = "D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv";
 		ScrollPanelRefPtr TableAreaScrollPanel = ScrollPanel::create();
         TableAreaScrollPanel->setPreferredSize(Vec2f(200,200));
 	    TableAreaScrollPanel->setViewComponent(ExampleTableDomArea);
@@ -1573,7 +1727,7 @@ int main(int argc, char **argv)
 	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_O);
     _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_O);
-	_LoadProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+	_LoadProjectItem->connectActionPerformed(boost::bind(handleLoadProject, _1,TutorialWindow.get(),ExampleTableDomArea.get(),&sceneManager,scene.get(),TutorialDrawingSurface.get()));
 
 	_SaveProjectItem = MenuItem::create();				
     _SaveProjectItem->setText("Save Project");
