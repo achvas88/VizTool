@@ -155,7 +155,7 @@ std::vector<node> get_by_clusterID(
 	for(; itr != i.end(); itr++)
 	{
 		if(itr->clusterID != theID) break;
-		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		//std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
 		result.push_back(*itr);
 	}
 	return result;
@@ -172,7 +172,7 @@ node get_by_theNode(
 	node_sequence::iterator itr = i.find(theNodePtr);
 	if(itr != i.end())
 	{
-		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		//std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
 		return *itr;
 	}
 	node result;
@@ -193,7 +193,7 @@ std::vector<node> get_by_label(
 	for(; itr != i.end(); itr++)
 	{
 		if(itr->label != thelabel) break;
-		std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		//std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
 		result.push_back(*itr);
 	}
 
@@ -207,7 +207,7 @@ void reshape(Vec2f Size, SimpleSceneManager *mgr);
 std::map< Int32,Pnt3f > cubePoints;
 float cubeSize = 25.f;
 enum cameraManipulation {FROM,AT,BOTH};
-enum modes {THE3DBARS,PEARSON,RECTANGLE};
+enum modes {THE3DBARS,PEARSON_DEGREESORT,PEARSON_CORRELATIONSORT,PEARSON_UNSORTED};
 static int theMode = THE3DBARS;
 node_set nodeDetailsTable;
 NodeRefPtr allTranNode;
@@ -215,6 +215,11 @@ static Int32 biggestCluster = 0;
 static Int32 biggestClusterNoOfNodes = 0;
 static Int32 smallestCluster = 99999;
 static Int32 smallestClusterNoOfNodes = 99999;
+static std::string highestDegree = "Highest Degree";
+static Int32 highestDegreeValue = 0;
+static std::string leastDegree = "Least Degree";
+static Int32 leastDegreeValue = 99999;
+
 std::vector<NodeRefPtr> highlightedNodes;
 ViewportRefPtr TutorialViewport;
 ChunkMaterialRefPtr GreenBackgroundMaterial,YellowBackgroundMaterial;
@@ -222,8 +227,12 @@ UIFontRefPtr _Font;
 AdvancedTextDomAreaRefPtr detailsTextDOMArea;
 InternalWindowRefPtr NotepadInternalWindow;
 static std::string datasetPath="";
-
+static bool isVisualized = false;
 bool NotepadVisible;
+AdvancedTextDomAreaRefPtr theNotepad;
+TableDomAreaRefPtr TheTableDomArea;
+ScrollPanelRefPtr TableAreaScrollPanel;
+InternalWindowRefPtr StatisticsInternalWindow;
 
 ChunkMaterialRefPtr createGreenMaterial(void);
 ChunkMaterialRefPtr createYellowMaterial(void);
@@ -249,7 +258,10 @@ MenuItemRefPtr _NotepadItem;
 
 // The Visualization Menu Items Declarations
 MenuItemRefPtr _3dBarsItem;
-MenuItemRefPtr _PearsonViewItem;
+MenuRefPtr _PearsonViewMenuItem;
+MenuItemRefPtr _DegreeSortItem;
+MenuItemRefPtr _UnsortedItem;
+MenuItemRefPtr _CorrelationSortItem;
 
 // The Export Menu Items Declarations
 MenuItemRefPtr _ExportSelectedItem;
@@ -257,13 +269,8 @@ MenuItemRefPtr _ExportSelectedItem;
 void setNotepadWindowVisible(bool isVisible, UIDrawingSurface* const NotepadDrawingSurface, WindowEventProducer* const TutorialWindow);
 bool isNotepadWindowVisible(void);
 void xmlExportScene(WindowEventProducer* const TutorialWindow);
+InternalWindowTransitPtr createStatisticsWindow(void);
 
-// load project
-//void GLViewport::set(const Matrix& m)
-//{
-//	_Navigator.set(m);
-//  _Navigator.updateCameraTransformation();
-//}
 
 void handleBasicAction(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow,UIDrawingSurface* const TutorialDrawingSurface)
 {
@@ -272,15 +279,31 @@ void handleBasicAction(ActionEventDetails* const details,WindowEventProducer* co
     {
 		TutorialWindow->closeWindow();
 	}
-	else if(details->getSource() == _PearsonViewItem)
+	else if(details->getSource() == _DegreeSortItem)
 	{
-		theMode = PEARSON;
-		std::cout<<"\nView Mode changed to PEARSON\n";
+		theMode = PEARSON_DEGREESORT;
+
+		TutorialDrawingSurface->closeWindow(StatisticsInternalWindow);
+		StatisticsInternalWindow = createStatisticsWindow();
+		TutorialDrawingSurface->openWindow(StatisticsInternalWindow);
+	
+	}
+	else if(details->getSource() == _UnsortedItem)
+	{
+		theMode = PEARSON_UNSORTED;
+		std::cout<<"\nView Mode changed to PEARSON_UNSORTED\n";
+	}
+	else if(details->getSource() == _CorrelationSortItem)
+	{
+		theMode = PEARSON_CORRELATIONSORT;
+		std::cout<<"\nView Mode changed to PEARSON_CORRELATIONSORT\n";
 	}
 	else if(details->getSource() == _3dBarsItem)
 	{
 		theMode = THE3DBARS;
-		std::cout<<"\nView Mode changed to THE3DBARS\n";
+		TutorialDrawingSurface->closeWindow(StatisticsInternalWindow);
+		StatisticsInternalWindow = createStatisticsWindow();
+		TutorialDrawingSurface->openWindow(StatisticsInternalWindow);
 	}
 	else if(details->getSource() == _NotepadItem)
 	{
@@ -342,7 +365,7 @@ void xmlExportScene(WindowEventProducer* const TutorialWindow)
 				rapidxml::xml_node<>* thenode = doc.allocate_node(rapidxml::node_element,
 														   "Node");
 				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
-				std::cout<<"result.label : "<<result.label<<std::endl;
+				//std::cout<<"result.label : "<<result.label<<std::endl;
 				char *labl = doc.allocate_string(result.label.c_str());
 				thenode->append_attribute(doc.allocate_attribute("Label",labl));
 
@@ -352,12 +375,12 @@ void xmlExportScene(WindowEventProducer* const TutorialWindow)
 				in<<result.clusterID;
 				in>>clusterIDS;
 				char *cIDS = doc.allocate_string(clusterIDS.c_str());
-				std::cout<<"result.clusterID : "<<clusterIDS<<std::endl;
+				//std::cout<<"result.clusterID : "<<clusterIDS<<std::endl;
 				thenode->append_attribute(doc.allocate_attribute("clusterID",cIDS));
 				root->append_node(thenode);
 			}
 
-			rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+			//rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
 			//std::ostream& ostr(ofs);
 			rapidxml::print(static_cast<std::ostream&>(ofs), doc, rapidxml::print_newline_attributes);
 			ofs.close();
@@ -526,7 +549,7 @@ void setNotepadWindowVisible(bool isVisible, UIDrawingSurface* const NotepadDraw
 		}
 		else
 		{
-			AdvancedTextDomAreaRefPtr theNotepad = AdvancedTextDomArea::create();
+			theNotepad = AdvancedTextDomArea::create();
 			theNotepad->setPreferredSize(Vec2f(200,200));
 			theNotepad->setText("Type your observations here");
 
@@ -710,9 +733,9 @@ void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel
 }
 
 
-void handleLoadButtonAction(ActionEventDetails* const details,
-                            WindowEventProducer* const TutorialWindow,
-                            TableDomArea* const ExampleTableDomArea)
+void handleLoadDatasetButtonAction(ActionEventDetails* const details,
+                            WindowEventProducer* const TutorialWindow/*,
+                            TableDomArea* const TheTableDomArea*/)
 {
 	std::vector<WindowEventProducer::FileDialogFilter> Filters;
 	Filters.push_back(WindowEventProducer::FileDialogFilter("CSV Files","csv"));
@@ -726,7 +749,7 @@ void handleLoadButtonAction(ActionEventDetails* const details,
 
     if(FilesToOpen.size() > 0)
     {
-	    ExampleTableDomArea->loadFile(FilesToOpen[0]);
+	    TheTableDomArea->loadFile(FilesToOpen[0]);
 		datasetPath = FilesToOpen[0].string();
     }
 }
@@ -793,6 +816,7 @@ NodeTransitPtr createFrontFaceOfCube(WindowEventProducer* const TutorialWindow)
         //TutorialDrawingSurface->setEventProducer(TutorialWindow);
   
 	TutorialDrawingSurface->openWindow(MainInternalWindow);
+	
 
 
 	UIRectangleRefPtr ExampleUIRectangle = UIRectangle::create();
@@ -910,105 +934,113 @@ void populatePoints()
 
 
 
-void create3DScene(TableDomArea* const ExampleTableDomArea,
+void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 							SimpleSceneManager* mgr,
 							Node* scene,
 							WindowEventProducer* const TutorialWindow)
 {
-	if(theMode == THE3DBARS)
+	if(TheTableDomArea && TheTableDomArea->getTableDOMModel() && TheTableDomArea->getTableDOMModel()->getRootCell())
 	{
-		CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
-		Int32 rows = rootCell->getMaximumRow();
-		Int32 cols = rootCell->getMaximumColumn();
-
-		cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
-		Matrix mat;
-		mat.setTranslate(-1* cubeSize/2.f, -1* rows * cubeSize/2.f ,-1* cubeSize/2.f);
-		TransformRefPtr allTranCore = Transform::create();
-		allTranCore->setMatrix(mat);
-		allTranNode = Node::create();
-		allTranNode->setCore(allTranCore);
-
-		for(Int32 i=0;i<rows;i++)
+		if(theMode == THE3DBARS)
 		{
+			CellRefPtr rootCell = TheTableDomArea->getTableDOMModel()->getRootCell();
+			Int32 rows = rootCell->getMaximumRow();
+			Int32 cols = rootCell->getMaximumColumn();
+
+			cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
 			Matrix mat;
-			mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) /*+ ((rows - 1 - i) * 3.0)*/,0.0);
-			TransformRefPtr theRowTranCore = Transform::create();
-			theRowTranCore->setMatrix(mat);
-			NodeRefPtr theRowTranNode = Node::create();
-			theRowTranNode->setCore(theRowTranCore);
+			mat.setTranslate(-1* cubeSize/2.f, -1* rows * cubeSize/2.f ,-1* cubeSize/2.f);
+			TransformRefPtr allTranCore = Transform::create();
+			allTranCore->setMatrix(mat);
+			allTranNode = Node::create();
+			allTranNode->setCore(allTranCore);
+
+			for(Int32 i=0;i<rows;i++)
+			{
+				Matrix mat;
+				mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) /*+ ((rows - 1 - i) * 3.0)*/,0.0);
+				TransformRefPtr theRowTranCore = Transform::create();
+				theRowTranCore->setMatrix(mat);
+				NodeRefPtr theRowTranNode = Node::create();
+				theRowTranNode->setCore(theRowTranCore);
 
 
-			int actual_colms = 0;
-			for(UInt32 j=0;j<cols;j++)
-			{	
-				CellRefPtr theRow = rootCell->getCell(i);
-				if(theRow)
-				{
-					CellRefPtr theCell = theRow->getCell(j);
-					if(theCell)
+				int actual_colms = 0;
+				for(UInt32 j=0;j<cols;j++)
+				{	
+					CellRefPtr theRow = rootCell->getCell(i);
+					if(theRow)
 					{
-						std::string theString = boost::any_cast<std::string>(theCell->getValue());
-						if(theString != "") actual_colms++;
-					}
-				}
-			}
-			if(actual_colms >= biggestClusterNoOfNodes) 
-			{
-				biggestClusterNoOfNodes = actual_colms;
-				biggestCluster = i;
-			}
-			if(actual_colms <= smallestClusterNoOfNodes) 
-			{
-				smallestClusterNoOfNodes = actual_colms;
-				smallestCluster = i;
-			}
-			if(actual_colms==0)actual_colms++;
-			Real32 column_width = cubeSize/actual_colms *1.f;
-
-			int count = 0;
-			for(UInt32 j=0;j<cols;j++)
-			{
-				CellRefPtr theRow = rootCell->getCell(i);
-				if(theRow)
-				{
-					CellRefPtr theCell = theRow->getCell(j);
-					if(theCell)
-					{
-						std::string theString = boost::any_cast<std::string>(theCell->getValue());
-						
-						if(theString != "")
+						CellRefPtr theCell = theRow->getCell(j);
+						if(theCell)
 						{
-							NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
-							dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
-							//tableToNodesMap[i][theString] = theCuboid;
-							nodeDetailsTable.insert(node(i,theString,theCuboid));
-
-							Matrix mat;
-							mat.setTranslate((count * cubeSize/*column_width*/) /*+ (count * 3.0)*/,0.0,0.0);
-							TransformRefPtr theCuboidTranCore = Transform::create();
-							theCuboidTranCore->setMatrix(mat);
-							NodeRefPtr theCuboidTranNode = Node::create();
-							theCuboidTranNode->setCore(theCuboidTranCore);
-
-							theCuboidTranNode->addChild(theCuboid);
-
-							theRowTranNode->addChild(theCuboidTranNode);
-							count++;
+							std::string theString = boost::any_cast<std::string>(theCell->getValue());
+							if(theString != "") actual_colms++;
 						}
 					}
 				}
+				if(actual_colms >= biggestClusterNoOfNodes) 
+				{
+					biggestClusterNoOfNodes = actual_colms;
+					biggestCluster = i;
+				}
+				if(actual_colms <= smallestClusterNoOfNodes) 
+				{
+					smallestClusterNoOfNodes = actual_colms;
+					smallestCluster = i;
+				}
+				if(actual_colms==0)actual_colms++;
+				Real32 column_width = cubeSize/actual_colms *1.f;
+
+				int count = 0;
+				for(UInt32 j=0;j<cols;j++)
+				{
+					CellRefPtr theRow = rootCell->getCell(i);
+					if(theRow)
+					{
+						CellRefPtr theCell = theRow->getCell(j);
+						if(theCell)
+						{
+							std::string theString = boost::any_cast<std::string>(theCell->getValue());
+							
+							if(theString != "")
+							{
+								NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
+								dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
+								//tableToNodesMap[i][theString] = theCuboid;
+								nodeDetailsTable.insert(node(i,theString,theCuboid));
+
+								Matrix mat;
+								mat.setTranslate((count * cubeSize/*column_width*/) /*+ (count * 3.0)*/,0.0,0.0);
+								TransformRefPtr theCuboidTranCore = Transform::create();
+								theCuboidTranCore->setMatrix(mat);
+								NodeRefPtr theCuboidTranNode = Node::create();
+								theCuboidTranNode->setCore(theCuboidTranCore);
+
+								theCuboidTranNode->addChild(theCuboid);
+
+								theRowTranNode->addChild(theCuboidTranNode);
+								count++;
+							}
+						}
+					}
+				}
+				allTranNode->addChild(theRowTranNode);
 			}
-			allTranNode->addChild(theRowTranNode);
+			scene->addChild(allTranNode);
 		}
-		scene->addChild(allTranNode);
-	}
-	else if(theMode == PEARSON)
-	{
-		
-	}
-	else if(theMode == RECTANGLE)
-	{
+		else if(theMode == PEARSON_CORRELATIONSORT)
+		{
+			
+		}
+		else if(theMode == PEARSON_DEGREESORT)
+		{
+			
+		}
+		else if(theMode == PEARSON_UNSORTED)
+		{
+			
+		}
 		
 	}
 }
@@ -1051,11 +1083,11 @@ void removingPreviouScene(Node* scene)
 
 void handleVisualizeButtonAction(ActionEventDetails* const details,
                             WindowEventProducer* const TutorialWindow,
-                            TableDomArea* const ExampleTableDomArea,
+                            /*TableDomArea* const TheTableDomArea,*/
 							SimpleSceneManager* mgr,
 							Node* scene)
 {
-	
+	isVisualized = true;
 	nodeDetailsTable.clear();
 	biggestCluster = 0;
 	biggestClusterNoOfNodes = 0;
@@ -1063,7 +1095,7 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 	smallestClusterNoOfNodes = 99999;
 
 	removingPreviouScene(scene);
-	create3DScene(ExampleTableDomArea,mgr,scene,TutorialWindow);
+	create3DScene(/*TheTableDomArea,*/mgr,scene,TutorialWindow);
 
 	mgr->showAll();
 }
@@ -1131,7 +1163,7 @@ void handleviewSmallestClusterButtonAction(ActionEventDetails* const details)
 
 }
 
-void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,TableDomArea *ExampleTableDomArea,TextField* clusterIDField)
+void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,TableDomArea *TheTableDomArea,TextField* clusterIDField)
 {
 	for(int i=0;i<highlightedNodes.size();i++)
 	{
@@ -1139,7 +1171,7 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 	}
 	highlightedNodes.clear();
 
-	CellRefPtr rootCell = ExampleTableDomArea->getTableDOMModel()->getRootCell();
+	CellRefPtr rootCell = TheTableDomArea->getTableDOMModel()->getRootCell();
 	UInt32 maxRow = rootCell->getMaximumRow();
 
 	std::istringstream is(clusterIDField->getText());
@@ -1182,7 +1214,7 @@ void handleclusterIDGoButtonButtonAction(ActionEventDetails* const details,Table
 
 }
 
-void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, TableDomArea* ExampleTableDomArea,SimpleSceneManager* mgr, Node* scene,UIDrawingSurface* const TutorialDrawingSurface )
+void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow,/* TableDomArea* TheTableDomArea,*/SimpleSceneManager* mgr, Node* scene,UIDrawingSurface* const TutorialDrawingSurface )
 {
 	std::vector<WindowEventProducer::FileDialogFilter> Filters;
 	Filters.push_back(WindowEventProducer::FileDialogFilter("Viztool Project Files","viz"));
@@ -1196,7 +1228,7 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 
     if(FilesToOpen.size() > 0)
     {
-	    //ExampleTableDomArea->loadFile(FilesToOpen[0]);
+	    //TheTableDomArea->loadFile(FilesToOpen[0]);
 		std::ifstream ifs(FilesToOpen[0].string().c_str());
 		std::string xmlString = "";
 		std::string line;
@@ -1215,6 +1247,13 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 		is<<modeString;
 		is>>modeVal;
 		theMode = modeVal;
+
+		// setting the IsVisualized
+		std::string isVisualizedString = cur_node->first_node("Visualization")->first_attribute("Value")->value();
+		UInt32 isVisualizedVal;
+		is<<isVisualizedString;
+		is>>isVisualizedVal;
+		isVisualized = isVisualizedVal;
 
 		// setting the notepad
 		std::string notepadString = cur_node->first_node("Notepad")->first_attribute("Visible")->value();
@@ -1237,10 +1276,13 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 		// populating the table
 		std::string datapathString = cur_node->first_node("Dataset")->first_attribute("Path")->value();
 		BoostPath theDataPath(datapathString);
-		ExampleTableDomArea->loadFile(theDataPath);
+		TheTableDomArea->loadFile(theDataPath);
+
+		datasetPath = theDataPath.string();
 
 		// visualizing the data
-		handleVisualizeButtonAction(NULL,TutorialWindow,ExampleTableDomArea,mgr,scene);
+		if(isVisualized)
+			handleVisualizeButtonAction(NULL,TutorialWindow/*,TheTableDomArea*/,mgr,scene);
 
 		// setting the camera beacon matrix
 		std::string matrixString = cur_node->first_node("Camera")->first_attribute("Matrix")->value();
@@ -1252,7 +1294,6 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 		boost::tokenizer<boost::char_separator<char>> tokens(matrixString, sep);
 
 		std::stringstream ss;
-		std::cout<<std::endl;
 
 		BOOST_FOREACH(std::string t, tokens)
 		{
@@ -1267,9 +1308,10 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 			  j=0;
 			}
 		}
-		std::cout<<std::endl;
-		dynamic_cast<Transform*>(mgr->getNavigator()->getViewport()->getCamera()->getBeacon()->getCore())->setMatrix(m);
-
+		
+		//dynamic_cast<Transform*>(mgr->getNavigator()->getViewport()->getCamera()->getBeacon()->getCore())->setMatrix(m);
+		mgr->getNavigator()->set(m);
+		mgr->getNavigator()->updateCameraTransformation();
 		
 		std::stringstream iss;
 		UInt32 clusterID;
@@ -1284,7 +1326,7 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 		{
 			if(!cur_node) 
 			{
-				std::cout<<"No more nodes"<<std::endl;
+				//std::cout<<"No more nodes"<<std::endl;
 				break;
 			}
 			label = cur_node->first_attribute("Label")->value();
@@ -1331,7 +1373,7 @@ void handleLoadProject(ActionEventDetails* const details,WindowEventProducer* co
 	}
 }
 
-void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, TableDomArea* ExampleTableDomArea,SimpleSceneManager* mgr)
+void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow, /*TableDomArea* TheTableDomArea,*/SimpleSceneManager* mgr)
 {
 	std::vector<WindowEventProducer::FileDialogFilter> Filters;
 	Filters.push_back(WindowEventProducer::FileDialogFilter("VizTool project files","viz"));
@@ -1365,6 +1407,7 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 			root->append_attribute(doc.allocate_attribute("version", "1.0"));
 			doc.append_node(root);
 
+			// node for mode 
 			rapidxml::xml_node<>* theModeNode = doc.allocate_node(rapidxml::node_element,"Mode");
 			std::string theModeS;
 			std::stringstream in;
@@ -1374,6 +1417,16 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 			char *mS = doc.allocate_string(theModeS.c_str());
 			theModeNode->append_attribute(doc.allocate_attribute("ID",mS));
 			root->append_node(theModeNode);
+
+			// is data being visualized?
+			rapidxml::xml_node<>* theIsVisualizedNode = doc.allocate_node(rapidxml::node_element,"Visualization");
+			std::string theIsVisualizedNodeS;
+			in.clear();
+			in<<isVisualized;
+			in>>theIsVisualizedNodeS;
+			char *vnS = doc.allocate_string(theIsVisualizedNodeS.c_str());
+			theIsVisualizedNode->append_attribute(doc.allocate_attribute("Value",vnS));
+			root->append_node(theIsVisualizedNode);
 
 			// camera transformation export
 			Matrix cameraTransformation = dynamic_cast<Transform*>(mgr->getNavigator()->getViewport()->getCamera()->getBeacon()->getCore())->getMatrix();
@@ -1437,7 +1490,7 @@ void handleSaveProject(ActionEventDetails* const details,WindowEventProducer* co
 				root->append_node(thenode);
 			}
 
-			rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
+			//rapidxml::print(std::cout, doc, rapidxml::print_newline_attributes);
 			//std::ostream& ostr(ofs);
 			rapidxml::print(static_cast<std::ostream&>(ofs), doc, rapidxml::print_newline_attributes);
 			ofs.close();
@@ -1484,103 +1537,305 @@ void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextFiel
 }
 
 
-PanelTransitPtr createExampleSplitPanelPanel2(TableDomArea* ExampleTableDomArea)
+InternalWindowTransitPtr createStatisticsWindow(void)
 {
 
-	LabelRefPtr statLabel = Label::create();
-	statLabel->setMinSize(Vec2f(50, 25));
-    statLabel->setMaxSize(Vec2f(200, 100));
-	statLabel->setPreferredSize(Vec2f(150, 20));
-	statLabel->setAlignment(Vec2f(0.0f,0.5f));
-	statLabel->setText("Statistics");
+	InternalWindowRefPtr StatisticsInternalWindow = OSG::InternalWindow::create();
+	StatisticsInternalWindow->setAlignmentInDrawingSurface(Vec2f(1.0f,0.0f));
+	StatisticsInternalWindow->setScalingInDrawingSurface(Vec2f(0.2f,1.f));
+	StatisticsInternalWindow->setDrawTitlebar(true);
+	StatisticsInternalWindow->setResizable(true);
+	StatisticsInternalWindow->setTitle("Statistics");
+		
 
-	ButtonRefPtr viewLargestClusterButton = Button::create();
-    viewLargestClusterButton->setMinSize(Vec2f(50, 25));
-    viewLargestClusterButton->setMaxSize(Vec2f(200, 100));
-    viewLargestClusterButton->setPreferredSize(Vec2f(150, 20));
-    viewLargestClusterButton->setToolTipText("Click to view the largest cluster");
-    viewLargestClusterButton->setText("View Largest Cluster");
-	viewLargestClusterButton->connectActionPerformed(boost::bind(handleviewLargestClusterButtonAction, _1));
+	if(theMode == THE3DBARS)
+	{
+		/*LabelRefPtr statLabel = Label::create();
+		statLabel->setMinSize(Vec2f(50, 25));
+		statLabel->setMaxSize(Vec2f(200, 100));
+		statLabel->setPreferredSize(Vec2f(150, 20));
+		statLabel->setAlignment(Vec2f(0.0f,0.5f));
+		statLabel->setText("Statistics");*/
 
-	ButtonRefPtr viewSmallestClusterButton = Button::create();
-    viewSmallestClusterButton->setMinSize(Vec2f(50, 25));
-    viewSmallestClusterButton->setMaxSize(Vec2f(200, 100));
-    viewSmallestClusterButton->setPreferredSize(Vec2f(150, 20));
-    viewSmallestClusterButton->setToolTipText("Click to view the smallest cluster");
-    viewSmallestClusterButton->setText("View Smallest Cluster");
-	viewSmallestClusterButton->connectActionPerformed(boost::bind(handleviewSmallestClusterButtonAction, _1));
+		//biggestCluster;
+		//biggestClusterNoOfNodes;
 
-	LabelRefPtr clusterIDLabel = Label::create();
-	clusterIDLabel->setMinSize(Vec2f(50, 25));
-    clusterIDLabel->setMaxSize(Vec2f(200, 100));
-	clusterIDLabel->setPreferredSize(Vec2f(150, 20));
-	clusterIDLabel->setText("cluster ID:");
+		LabelRefPtr biggestClusterLabel = Label::create();
+		biggestClusterLabel->setMinSize(Vec2f(50, 25));
+		biggestClusterLabel->setMaxSize(Vec2f(200, 100));
+		biggestClusterLabel->setPreferredSize(Vec2f(150, 20));
+		biggestClusterLabel->setAlignment(Vec2f(0.0f,0.5f));
+		std::string biggestClusterS;
+		std::stringstream iss(biggestCluster);
+		iss>>biggestClusterS;
+		biggestClusterLabel->setText("Biggest Cluster: " + biggestClusterS);
 
-	TextFieldRefPtr clusterIDTextField = OSG::TextField::create();
-    clusterIDTextField->setText("");
-    clusterIDTextField->setEmptyDescText("Enter Cluster ID here");
-    clusterIDTextField->setPreferredSize(Vec2f(150.0f,20.0f));
+		LabelRefPtr biggestClusterNoOfNodesLabel = Label::create();
+		biggestClusterNoOfNodesLabel->setMinSize(Vec2f(50, 25));
+		biggestClusterNoOfNodesLabel->setMaxSize(Vec2f(200, 100));
+		biggestClusterNoOfNodesLabel->setPreferredSize(Vec2f(150, 20));
+		biggestClusterNoOfNodesLabel->setAlignment(Vec2f(0.5f,0.5f));
+		std::string biggestClusterNoOfNodesS;
+		iss.clear();
+		iss<<(biggestClusterNoOfNodes);
+		iss>>biggestClusterNoOfNodesS;
+		biggestClusterNoOfNodesLabel->setText("Number of nodes: " + biggestClusterNoOfNodesS);
 
-	ButtonRefPtr clusterIDGoButton = Button::create();
-    clusterIDGoButton->setMinSize(Vec2f(50, 25));
-    clusterIDGoButton->setMaxSize(Vec2f(200, 100));
-    clusterIDGoButton->setPreferredSize(Vec2f(150, 20));
-    clusterIDGoButton->setText("Go >>");
-	clusterIDGoButton->connectActionPerformed(boost::bind(handleclusterIDGoButtonButtonAction, _1,ExampleTableDomArea,clusterIDTextField.get()));
+		LabelRefPtr smallestClusterLabel = Label::create();
+		smallestClusterLabel->setMinSize(Vec2f(50, 25));
+		smallestClusterLabel->setMaxSize(Vec2f(200, 100));
+		smallestClusterLabel->setPreferredSize(Vec2f(150, 20));
+		smallestClusterLabel->setAlignment(Vec2f(0.0f,0.5f));
+		std::string smallestClusterS;
+		iss.clear();
+		iss<<(smallestCluster);
+		iss>>smallestClusterS;
+		smallestClusterLabel->setText("Smallest Cluster: " + smallestClusterS);
 
-	LabelRefPtr nodeIDLabel = Label::create();
-	nodeIDLabel->setMinSize(Vec2f(50, 25));
-    nodeIDLabel->setMaxSize(Vec2f(200, 100));
-	nodeIDLabel->setPreferredSize(Vec2f(150, 20));
-	nodeIDLabel->setText("node string:");
+		LabelRefPtr smallestClusterNoOfNodesLabel = Label::create();
+		smallestClusterNoOfNodesLabel->setMinSize(Vec2f(50, 25));
+		smallestClusterNoOfNodesLabel->setMaxSize(Vec2f(200, 100));
+		smallestClusterNoOfNodesLabel->setPreferredSize(Vec2f(150, 20));
+		smallestClusterNoOfNodesLabel->setAlignment(Vec2f(0.5f,0.5f));
+		std::string smallestClusterNoOfNodesS;
+		iss.clear();
+		iss<<(smallestClusterNoOfNodes);
+		iss>>smallestClusterNoOfNodesS;
+		smallestClusterNoOfNodesLabel->setText("Number of nodes: " + smallestClusterNoOfNodesS);
 
-	TextFieldRefPtr nodeIDTextField = OSG::TextField::create();
-    nodeIDTextField->setText("");
-    nodeIDTextField->setEmptyDescText("Enter node string here");
-    nodeIDTextField->setPreferredSize(Vec2f(150.0f,20.0f));
+/*		ButtonRefPtr viewLargestClusterButton = Button::create();
+		viewLargestClusterButton->setMinSize(Vec2f(50, 25));
+		viewLargestClusterButton->setMaxSize(Vec2f(200, 100));
+		viewLargestClusterButton->setPreferredSize(Vec2f(150, 20));
+		viewLargestClusterButton->setToolTipText("Click to view the largest cluster");
+		viewLargestClusterButton->setText("View Largest Cluster");
+		viewLargestClusterButton->connectActionPerformed(boost::bind(handleviewLargestClusterButtonAction, _1));
 
-	ButtonRefPtr nodeIDGoButton = Button::create();
-    nodeIDGoButton->setMinSize(Vec2f(50, 25));
-    nodeIDGoButton->setMaxSize(Vec2f(200, 100));
-    nodeIDGoButton->setPreferredSize(Vec2f(150, 20));
-    nodeIDGoButton->setText("Go >>");
-	nodeIDGoButton->connectActionPerformed(boost::bind(handlenodeIDGoButtonButtonAction, _1,nodeIDTextField.get()));
+		ButtonRefPtr viewSmallestClusterButton = Button::create();
+		viewSmallestClusterButton->setMinSize(Vec2f(50, 25));
+		viewSmallestClusterButton->setMaxSize(Vec2f(200, 100));
+		viewSmallestClusterButton->setPreferredSize(Vec2f(150, 20));
+		viewSmallestClusterButton->setToolTipText("Click to view the smallest cluster");
+		viewSmallestClusterButton->setText("View Smallest Cluster");
+		viewSmallestClusterButton->connectActionPerformed(boost::bind(handleviewSmallestClusterButtonAction, _1));
+*/
+		LabelRefPtr clusterIDLabel = Label::create();
+		clusterIDLabel->setMinSize(Vec2f(50, 25));
+		clusterIDLabel->setMaxSize(Vec2f(200, 100));
+		clusterIDLabel->setPreferredSize(Vec2f(150, 20));
+		clusterIDLabel->setText("cluster ID:");
 
-	LabelRefPtr detailsLabel = Label::create();
-	detailsLabel->setMinSize(Vec2f(50, 25));
-    detailsLabel->setMaxSize(Vec2f(200, 100));
-	detailsLabel->setPreferredSize(Vec2f(150, 20));
-	detailsLabel->setText("Details:");
+		TextFieldRefPtr clusterIDTextField = OSG::TextField::create();
+		clusterIDTextField->setText("");
+		clusterIDTextField->setEmptyDescText("Enter Cluster ID here");
+		clusterIDTextField->setPreferredSize(Vec2f(150.0f,20.0f));
 
-	detailsTextDOMArea = AdvancedTextDomArea::create();
-    detailsTextDOMArea->setPreferredSize(Vec2f(200,200));
-	detailsTextDOMArea->setEditable(false);
-	detailsTextDOMArea->setText("Details");
+		ButtonRefPtr clusterIDGoButton = Button::create();
+		clusterIDGoButton->setMinSize(Vec2f(50, 25));
+		clusterIDGoButton->setMaxSize(Vec2f(200, 100));
+		clusterIDGoButton->setPreferredSize(Vec2f(150, 20));
+		clusterIDGoButton->setText("Go >>");
+		clusterIDGoButton->connectActionPerformed(boost::bind(handleclusterIDGoButtonButtonAction, _1,TheTableDomArea,clusterIDTextField.get()));
 
-	ScrollPanelRefPtr detailsTextDOMAreaScrollPanel = ScrollPanel::create();
-    detailsTextDOMAreaScrollPanel->setPreferredSize(Vec2f(150,150));
-    detailsTextDOMAreaScrollPanel->setViewComponent(detailsTextDOMArea);
+		LabelRefPtr nodeIDLabel = Label::create();
+		nodeIDLabel->setMinSize(Vec2f(50, 25));
+		nodeIDLabel->setMaxSize(Vec2f(200, 100));
+		nodeIDLabel->setPreferredSize(Vec2f(150, 20));
+		nodeIDLabel->setText("node string:");
 
+		TextFieldRefPtr nodeIDTextField = OSG::TextField::create();
+		nodeIDTextField->setText("");
+		nodeIDTextField->setEmptyDescText("Enter node string here");
+		nodeIDTextField->setPreferredSize(Vec2f(150.0f,20.0f));
+
+		ButtonRefPtr nodeIDGoButton = Button::create();
+		nodeIDGoButton->setMinSize(Vec2f(50, 25));
+		nodeIDGoButton->setMaxSize(Vec2f(200, 100));
+		nodeIDGoButton->setPreferredSize(Vec2f(150, 20));
+		nodeIDGoButton->setText("Go >>");
+		nodeIDGoButton->connectActionPerformed(boost::bind(handlenodeIDGoButtonButtonAction, _1,nodeIDTextField.get()));
+
+		LabelRefPtr detailsLabel = Label::create();
+		detailsLabel->setMinSize(Vec2f(50, 25));
+		detailsLabel->setMaxSize(Vec2f(200, 100));
+		detailsLabel->setPreferredSize(Vec2f(150, 20));
+		detailsLabel->setText("Details:");
+
+		detailsTextDOMArea = AdvancedTextDomArea::create();
+		detailsTextDOMArea->setPreferredSize(Vec2f(200,200));
+		detailsTextDOMArea->setEditable(false);
+		detailsTextDOMArea->setText("Details");
+
+		ScrollPanelRefPtr detailsTextDOMAreaScrollPanel = ScrollPanel::create();
+		detailsTextDOMAreaScrollPanel->setPreferredSize(Vec2f(150,150));
+		detailsTextDOMAreaScrollPanel->setViewComponent(detailsTextDOMArea);
+
+		
+		FlowLayoutRefPtr PanelFlowLayout2 = OSG::FlowLayout::create();
+		PanelFlowLayout2->setHorizontalGap(3);
+		PanelFlowLayout2->setVerticalGap(3);
+
+		
+		//StatisticsPanel->pushToChildren(statLabel);
+		//StatisticsPanel->pushToChildren(viewLargestClusterButton);
+		//StatisticsPanel->pushToChildren(viewSmallestClusterButton);
+		StatisticsInternalWindow->pushToChildren(clusterIDLabel);
+		StatisticsInternalWindow->pushToChildren(clusterIDTextField);
+		StatisticsInternalWindow->pushToChildren(clusterIDGoButton);
+		StatisticsInternalWindow->pushToChildren(nodeIDLabel);
+		StatisticsInternalWindow->pushToChildren(nodeIDTextField);
+		StatisticsInternalWindow->pushToChildren(nodeIDGoButton);
+		StatisticsInternalWindow->pushToChildren(detailsLabel);
+		StatisticsInternalWindow->pushToChildren(detailsTextDOMAreaScrollPanel);
+		StatisticsInternalWindow->setLayout(PanelFlowLayout2);
+		
+	}
+	else if(theMode == PEARSON_CORRELATIONSORT)
+	{
+
+	}
+	else if(theMode == PEARSON_UNSORTED)
+	{
+
+	}
+	else if(theMode == PEARSON_DEGREESORT)
+	{
+		// Details : 
+		// Highest Degree node - The value - 2 labels 
+		// Least Degree node - The value - 2 labels
+		// given a node - display details - label + textarea + button + TextDomArea
+		// all in a grid layout
+
+		LabelRefPtr highestDegreeLabel = Label::create();
+		highestDegreeLabel->setMinSize(Vec2f(50, 25));
+		highestDegreeLabel->setMaxSize(Vec2f(250, 100));
+		highestDegreeLabel->setPreferredSize(Vec2f(200, 20));
+		highestDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string highestDegreeS;
+		std::stringstream iss(highestDegree);
+		iss>>highestDegreeS;
+		highestDegreeLabel->setText("Highest Degree Node: " + highestDegreeS);
+
+		LabelRefPtr highestDegreeValueLabel = Label::create();
+		highestDegreeValueLabel->setMinSize(Vec2f(50, 25));
+		highestDegreeValueLabel->setMaxSize(Vec2f(200, 100));
+		highestDegreeValueLabel->setPreferredSize(Vec2f(150, 20));
+		highestDegreeValueLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string highestDegreeValueS;
+		iss.clear();
+		iss<<(highestDegreeValue);
+		iss>>highestDegreeValueS;
+		highestDegreeValueLabel->setText("Value: " + highestDegreeValueS);
+
+		LabelRefPtr leastDegreeLabel = Label::create();
+		leastDegreeLabel->setMinSize(Vec2f(50, 25));
+		leastDegreeLabel->setMaxSize(Vec2f(250, 100));
+		leastDegreeLabel->setPreferredSize(Vec2f(200, 20));
+		leastDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string leastDegreeS;
+		iss.clear();
+		iss<<(leastDegree);
+		iss>>leastDegreeS;
+		leastDegreeLabel->setText("Least Degree Node: " + leastDegreeS);
+
+		LabelRefPtr leastDegreeValueLabel = Label::create();
+		leastDegreeValueLabel->setMinSize(Vec2f(50, 25));
+		leastDegreeValueLabel->setMaxSize(Vec2f(200, 100));
+		leastDegreeValueLabel->setPreferredSize(Vec2f(150, 20));
+		leastDegreeValueLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string leastDegreeValueS;
+		iss.clear();
+		iss<<(leastDegreeValue);
+		iss>>leastDegreeValueS;
+		leastDegreeValueLabel->setText("Value: " + leastDegreeValueS);
+
+		LabelRefPtr nodeIDLabel = Label::create();
+		nodeIDLabel->setMinSize(Vec2f(50, 25));
+		nodeIDLabel->setMaxSize(Vec2f(200, 100));
+		nodeIDLabel->setPreferredSize(Vec2f(150, 20));
+		nodeIDLabel->setText("node string:");
+
+		TextFieldRefPtr nodeIDTextField = OSG::TextField::create();
+		nodeIDTextField->setText("");
+		nodeIDTextField->setEmptyDescText("Enter node string here");
+		nodeIDTextField->setPreferredSize(Vec2f(150.0f,20.0f));
+
+		ButtonRefPtr nodeIDGoButton = Button::create();
+		nodeIDGoButton->setMinSize(Vec2f(50, 25));
+		nodeIDGoButton->setMaxSize(Vec2f(200, 100));
+		nodeIDGoButton->setPreferredSize(Vec2f(150, 20));
+		nodeIDGoButton->setText("Go >>");
+		//nodeIDGoButton->connectActionPerformed(boost::bind(handlenodeIDGoButtonButtonAction, _1,nodeIDTextField.get()));
+
+		LabelRefPtr detailsLabel = Label::create();
+		detailsLabel->setMinSize(Vec2f(50, 25));
+		detailsLabel->setMaxSize(Vec2f(200, 100));
+		detailsLabel->setPreferredSize(Vec2f(150, 20));
+		detailsLabel->setText("Details:");
+
+		detailsTextDOMArea = AdvancedTextDomArea::create();
+		detailsTextDOMArea->setPreferredSize(Vec2f(200,200));
+		detailsTextDOMArea->setEditable(false);
+		detailsTextDOMArea->setText("Details");
+
+		ScrollPanelRefPtr detailsTextDOMAreaScrollPanel = ScrollPanel::create();
+		detailsTextDOMAreaScrollPanel->setPreferredSize(Vec2f(150,150));
+		detailsTextDOMAreaScrollPanel->setViewComponent(detailsTextDOMArea);
+
+		//GridLayoutRefPtr TheGridLayout = OSG::GridLayout::create();
+		//TheGridLayout->setRows(9);
+		//TheGridLayout->setColumns(1);
+
+		FlowLayoutRefPtr PanelFlowLayout2 = OSG::FlowLayout::create();
+		PanelFlowLayout2->setHorizontalGap(3);
+		PanelFlowLayout2->setVerticalGap(3);
+
+		StatisticsInternalWindow->pushToChildren(highestDegreeLabel);
+		StatisticsInternalWindow->pushToChildren(highestDegreeValueLabel);
+		StatisticsInternalWindow->pushToChildren(leastDegreeLabel);
+		StatisticsInternalWindow->pushToChildren(leastDegreeValueLabel);
+		StatisticsInternalWindow->pushToChildren(nodeIDLabel);
+		StatisticsInternalWindow->pushToChildren(nodeIDTextField);
+		StatisticsInternalWindow->pushToChildren(nodeIDGoButton);
+		StatisticsInternalWindow->pushToChildren(detailsLabel);
+		StatisticsInternalWindow->pushToChildren(detailsTextDOMAreaScrollPanel);
+		//StatisticsInternalWindow->setPreferredSize(Vec2f(200.f,600.f));
+		StatisticsInternalWindow->setLayout(/*TheGridLayout*/PanelFlowLayout2);
+
+	}
 	
-	FlowLayoutRefPtr PanelFlowLayout2 = OSG::FlowLayout::create();
-	PanelFlowLayout2->setHorizontalGap(3);
-	PanelFlowLayout2->setVerticalGap(3);
 
-	PanelRefPtr ExampleSplitPanelPanel2 = OSG::Panel::create();
-	ExampleSplitPanelPanel2->pushToChildren(statLabel);
-	ExampleSplitPanelPanel2->pushToChildren(viewLargestClusterButton);
-	ExampleSplitPanelPanel2->pushToChildren(viewSmallestClusterButton);
-	ExampleSplitPanelPanel2->pushToChildren(clusterIDLabel);
-	ExampleSplitPanelPanel2->pushToChildren(clusterIDTextField);
-	ExampleSplitPanelPanel2->pushToChildren(clusterIDGoButton);
-	ExampleSplitPanelPanel2->pushToChildren(nodeIDLabel);
-	ExampleSplitPanelPanel2->pushToChildren(nodeIDTextField);
-	ExampleSplitPanelPanel2->pushToChildren(nodeIDGoButton);
-	ExampleSplitPanelPanel2->pushToChildren(detailsLabel);
-	ExampleSplitPanelPanel2->pushToChildren(detailsTextDOMAreaScrollPanel);
-	ExampleSplitPanelPanel2->setLayout(PanelFlowLayout2);
+	return InternalWindowTransitPtr(StatisticsInternalWindow);
+}
 
-	return PanelTransitPtr(ExampleSplitPanelPanel2);
+void handleNewProject(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow,/* TableDomArea* TheTableDomArea,*/SimpleSceneManager* mgr, Node* scene,UIDrawingSurface* const TutorialDrawingSurface)
+{
+	theMode = THE3DBARS;
+
+	setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
+	_NotepadItem->setText("Show Notepad");
+
+	nodeDetailsTable.clear();
+	highlightedNodes.clear();
+	biggestCluster = 0;
+	biggestClusterNoOfNodes = 0;
+	smallestCluster = 99999;
+	smallestClusterNoOfNodes = 99999;
+	removingPreviouScene(scene);
+
+	isVisualized = false;
+
+	detailsTextDOMArea->clear();
+
+	if(theNotepad)
+		theNotepad->setText("Type your observations here");
+
+	TheTableDomArea = TableDomArea::create();
+	TheTableDomArea->setPreferredSize(Vec2f(300,200));
+	TableAreaScrollPanel->setViewComponent(TheTableDomArea);
+
+	datasetPath = "";
+
 }
 
 int main(int argc, char **argv)
@@ -1637,13 +1892,13 @@ int main(int argc, char **argv)
 
 			    
 	
-		TableDomAreaRefPtr ExampleTableDomArea = TableDomArea::create();
-		ExampleTableDomArea->setPreferredSize(Vec2f(300,200));
-	    ExampleTableDomArea->loadFile(BoostPath("D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv"));
-		datasetPath = "D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv";
-		ScrollPanelRefPtr TableAreaScrollPanel = ScrollPanel::create();
+		TheTableDomArea = TableDomArea::create();
+		TheTableDomArea->setPreferredSize(Vec2f(300,200));
+	    //TheTableDomArea->loadFile(BoostPath("D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv"));
+		//datasetPath = "D:\\Work_Office_RA\\OpenSGToolBox\\Examples\\Tutorial\\TableDom\\Data\\SampleOutput.csv";
+		TableAreaScrollPanel = ScrollPanel::create();
         TableAreaScrollPanel->setPreferredSize(Vec2f(200,200));
-	    TableAreaScrollPanel->setViewComponent(ExampleTableDomArea);
+	    TableAreaScrollPanel->setViewComponent(TheTableDomArea);
 
 
 	    ButtonRefPtr LoadButton = Button::create();
@@ -1652,7 +1907,7 @@ int main(int argc, char **argv)
         LoadButton->setPreferredSize(Vec2f(200, 50));
         LoadButton->setToolTipText("Click to open a file browser window");
         LoadButton->setText("Load Dataset");
-		LoadButton->connectActionPerformed(boost::bind(handleLoadButtonAction, _1, TutorialWindow.get(), ExampleTableDomArea.get()));
+		LoadButton->connectActionPerformed(boost::bind(handleLoadDatasetButtonAction, _1, TutorialWindow.get()/*, TheTableDomArea.get()*/));
 
 
 		LabelRefPtr tableLabel = Label::create();
@@ -1667,7 +1922,7 @@ int main(int argc, char **argv)
         VisualizeButton->setPreferredSize(Vec2f(100, 50));
         VisualizeButton->setToolTipText("Click to visualize the data");
         VisualizeButton->setText("Visualize Data");
-		VisualizeButton->connectActionPerformed(boost::bind(handleVisualizeButtonAction, _1, TutorialWindow.get(), ExampleTableDomArea.get(),&sceneManager,scene.get()));
+		VisualizeButton->connectActionPerformed(boost::bind(handleVisualizeButtonAction, _1, TutorialWindow.get(), /*TheTableDomArea.get(),*/&sceneManager,scene.get()));
 	
 		FlowLayoutRefPtr PanelFlowLayout = OSG::FlowLayout::create();
 		PanelFlowLayout->setHorizontalGap(3);
@@ -1681,21 +1936,24 @@ int main(int argc, char **argv)
 		ExampleSplitPanelPanel1->setLayout(PanelFlowLayout);
 
 
-		PanelRefPtr ExampleSplitPanelPanel2 = createExampleSplitPanelPanel2(ExampleTableDomArea.get());
+		//PanelRefPtr StatisticsPanel = createStatisticsPanel(TheTableDomArea.get());
 
-	    BorderLayoutConstraintsRefPtr ExampleSplitPanel2Constraints = OSG::BorderLayoutConstraints::create();
+/*	    BorderLayoutConstraintsRefPtr ExampleSplitPanel2Constraints = OSG::BorderLayoutConstraints::create();
 		ExampleSplitPanel2Constraints->setRegion(BorderLayoutConstraints::BORDER_CENTER);
 
 		SplitPanelRefPtr ExampleSplitPanel2 = OSG::SplitPanel::create();
 		ExampleSplitPanel2->setConstraints(ExampleSplitPanel2Constraints);
-		ExampleSplitPanel2->setMaxComponent(ExampleSplitPanelPanel2);
+		ExampleSplitPanel2->setMaxComponent(StatisticsPanel);
 		ExampleSplitPanel2->setDividerPosition(.80); // this is a percentage
 		ExampleSplitPanel2->setDividerSize(5);
 		ExampleSplitPanel2->setExpandable(false);
 		//ExampleSplitPanel2->setMaxDividerPosition(0.80);
 		//ExampleSplitPanel2->setMinDividerPosition(0.80);
 
+*/
 
+
+    
 		BorderLayoutRefPtr MainInternalWindowLayout = OSG::BorderLayout::create();
 		BorderLayoutConstraintsRefPtr ExampleSplitPanelConstraints = OSG::BorderLayoutConstraints::create();
 		ExampleSplitPanelConstraints->setRegion(BorderLayoutConstraints::BORDER_CENTER);
@@ -1705,7 +1963,7 @@ int main(int argc, char **argv)
 
 		ExampleSplitPanel->setConstraints(ExampleSplitPanelConstraints);
 		ExampleSplitPanel->setMinComponent(ExampleSplitPanelPanel1);
-		ExampleSplitPanel->setMaxComponent(ExampleSplitPanel2);
+		//ExampleSplitPanel->setMaxComponent(ExampleSplitPanel2);
 		
 		ExampleSplitPanel->setDividerPosition(.20); // this is a percentage
 		ExampleSplitPanel->setDividerSize(5);
@@ -1720,28 +1978,28 @@ int main(int argc, char **argv)
 	_NewProjectItem->setAcceleratorKey(KeyEventDetails::KEY_N);
     _NewProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _NewProjectItem->setMnemonicKey(KeyEventDetails::KEY_N);
-	_NewProjectItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+	_NewProjectItem->connectActionPerformed(boost::bind(handleNewProject, _1,TutorialWindow.get(),&sceneManager,scene.get(),TutorialDrawingSurface.get()));
 
 	_LoadProjectItem = MenuItem::create();				
     _LoadProjectItem->setText("Load Project");
 	_LoadProjectItem->setAcceleratorKey(KeyEventDetails::KEY_O);
     _LoadProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _LoadProjectItem->setMnemonicKey(KeyEventDetails::KEY_O);
-	_LoadProjectItem->connectActionPerformed(boost::bind(handleLoadProject, _1,TutorialWindow.get(),ExampleTableDomArea.get(),&sceneManager,scene.get(),TutorialDrawingSurface.get()));
+	_LoadProjectItem->connectActionPerformed(boost::bind(handleLoadProject, _1,TutorialWindow.get(),/*TheTableDomArea.get(),*/&sceneManager,scene.get(),TutorialDrawingSurface.get()));
 
 	_SaveProjectItem = MenuItem::create();				
     _SaveProjectItem->setText("Save Project");
 	_SaveProjectItem->setAcceleratorKey(KeyEventDetails::KEY_S);
     _SaveProjectItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _SaveProjectItem->setMnemonicKey(KeyEventDetails::KEY_S);
-	_SaveProjectItem->connectActionPerformed(boost::bind(handleSaveProject, _1,TutorialWindow.get(),ExampleTableDomArea.get(),&sceneManager));
+	_SaveProjectItem->connectActionPerformed(boost::bind(handleSaveProject, _1,TutorialWindow.get(),/*TheTableDomArea.get(),*/&sceneManager));
 
 	_LoadDataSetItem = MenuItem::create();				
     _LoadDataSetItem->setText("Load Dataset");
 	_LoadDataSetItem->setAcceleratorKey(KeyEventDetails::KEY_L);
     _LoadDataSetItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _LoadDataSetItem->setMnemonicKey(KeyEventDetails::KEY_L);
-	_LoadDataSetItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+	_LoadDataSetItem->connectActionPerformed(boost::bind(handleLoadDatasetButtonAction, _1, TutorialWindow.get()/*, TheTableDomArea.get()*/));
 
 	_ExitItem = MenuItem::create();				
     _ExitItem->setText("Exit");
@@ -1761,17 +2019,25 @@ int main(int argc, char **argv)
 	// The Visualization Menu Items Definitions
 	_3dBarsItem = MenuItem::create();				
     _3dBarsItem->setText("3D Bars");
-    _3dBarsItem->setAcceleratorKey(KeyEventDetails::KEY_B);
-    _3dBarsItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _3dBarsItem->setMnemonicKey(KeyEventDetails::KEY_B);
 	_3dBarsItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
 	
-	_PearsonViewItem = MenuItem::create();				
-    _PearsonViewItem->setText("Pearson Visualization");
-    _PearsonViewItem->setAcceleratorKey(KeyEventDetails::KEY_P);
-    _PearsonViewItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
-    _PearsonViewItem->setMnemonicKey(KeyEventDetails::KEY_P);
-	_PearsonViewItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+	_DegreeSortItem = MenuItem::create();				
+    _DegreeSortItem->setText("Degree sort");
+	_DegreeSortItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+
+	_UnsortedItem = MenuItem::create();				
+    _UnsortedItem->setText("Unsorted");
+	_UnsortedItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+
+	_CorrelationSortItem = MenuItem::create();				
+    _CorrelationSortItem->setText("Correlation sort");
+    _CorrelationSortItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+
+	_PearsonViewMenuItem = Menu::create();				
+    _PearsonViewMenuItem->setText("Pearson Visualization");
+	_PearsonViewMenuItem->addItem(_DegreeSortItem);
+	_PearsonViewMenuItem->addItem(_UnsortedItem);
+	_PearsonViewMenuItem->addItem(_CorrelationSortItem);
 
 	// The Export Menu Items Definitions
 	_ExportSelectedItem = MenuItem::create();				
@@ -1780,6 +2046,8 @@ int main(int argc, char **argv)
     _ExportSelectedItem->setAcceleratorModifiers(KeyEventDetails::KEY_MODIFIER_COMMAND);
     _ExportSelectedItem->setMnemonicKey(KeyEventDetails::KEY_E);
 	_ExportSelectedItem->connectActionPerformed(boost::bind(handleBasicAction, _1,TutorialWindow.get(),TutorialDrawingSurface.get()));
+
+
 
 	// The Project Menu Definition
     _ProjectMenu = Menu::create();
@@ -1807,7 +2075,7 @@ int main(int argc, char **argv)
     _VisualizationMenu->setMnemonicKey(KeyEventDetails::KEY_Z);
 	// Addition of the Visualization Menu Items 
     _VisualizationMenu->addItem(_3dBarsItem);
-	_VisualizationMenu->addItem(_PearsonViewItem);
+	_VisualizationMenu->addItem(_PearsonViewMenuItem);
     
 	// The Export Menu Definition
     _ExportMenu = Menu::create();
@@ -1843,13 +2111,14 @@ int main(int argc, char **argv)
 		MainInternalWindow->setResizable(false);
 		MainInternalWindow->setAllInsets(5);
 
-    	  
+		StatisticsInternalWindow = createStatisticsWindow();
 	
         
         TutorialDrawingSurface->setGraphics(TutorialGraphics);
         TutorialDrawingSurface->setEventProducer(TutorialWindow);
     	
 	    TutorialDrawingSurface->openWindow(MainInternalWindow);
+		TutorialDrawingSurface->openWindow(StatisticsInternalWindow);
 
 		//setNotepadWindowVisible(true,TutorialDrawingSurface.get(),TutorialWindow.get());
 
