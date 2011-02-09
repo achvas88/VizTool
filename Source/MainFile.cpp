@@ -96,7 +96,7 @@ using namespace boost::multi_index;
 // Activate the OpenSG namespace
 OSG_USING_NAMESPACE
 
-
+//////////////////////////// data structures for cluster storage ////////////////////////
 
 struct node
 {
@@ -200,6 +200,227 @@ std::vector<node> get_by_label(
 	return result;
 }
 
+//////////////////////////// END data structures for cluster storage ////////////////////////
+
+//////////////////////////// data structures for pearson storage ////////////////////////
+
+
+//typedef struct linkDetails
+//{
+//	std::string theConnectedNode;
+//	Real32 pearsonValue;
+//
+//	friend bool operator==(const pearson_node& n)
+//	{
+//		return ((theConnectedNode == n.theConnectedNode) && (pearsonValue == n.pearsonValue));
+//	}
+//
+//}linkDetails;
+
+
+struct pearson_node
+{
+	std::string label1;
+	std::string label2;
+	Real32 correlationValue;
+	NodeRefPtr theNode;
+
+
+	pearson_node(std::string label1_,std::string label2_,Real32 correlationValue_,NodeRefPtr theNode_):label1(label1_),label2(label2_),correlationValue(correlationValue_),theNode(theNode_){}
+	pearson_node(){}
+
+	friend std::ostream& operator<<(std::ostream& os,const pearson_node& n)
+	{
+		os<<n.label1<<" "<<n.label2<<" "<<n.correlationValue;
+		return os;
+	}
+};
+
+/* tags for accessing the corresponding indices of employee_set */
+
+// reusing the ones created previously
+struct label1{};
+struct label2{};
+struct correlationValue{};
+
+//struct theNode{};
+
+typedef multi_index_container<
+  pearson_node,
+  indexed_by<
+    ordered_non_unique<
+	tag<label1>,BOOST_MULTI_INDEX_MEMBER(pearson_node,std::string,label1)>,
+	ordered_non_unique<
+	tag<label2>,BOOST_MULTI_INDEX_MEMBER(pearson_node,std::string,label2)>,
+	ordered_non_unique<
+	tag<correlationValue>,BOOST_MULTI_INDEX_MEMBER(pearson_node,Real32,correlationValue)>,
+    ordered_non_unique<  
+      tag<theNode>, BOOST_MULTI_INDEX_MEMBER(pearson_node,NodeRefPtr,theNode)> > 
+> pearson_node_set;
+
+
+pearson_node get_by_theNode(
+ const pearson_node_set& s,
+ NodeRefPtr theNodePtr
+)
+{
+	pearson_node  result;
+	typedef boost::multi_index::index<pearson_node_set,theNode>::type node_sequence;
+    const node_sequence& i= get<theNode>(s);
+	node_sequence::iterator itr = i.find(theNodePtr);
+	if(itr != i.end())
+	{
+		return *itr;
+	}
+	return result;
+}
+
+std::vector<pearson_node> get_by_label(
+ const pearson_node_set& s,
+ std::string thelabel
+)
+{
+	std::vector<pearson_node> result;
+	typedef boost::multi_index::index<pearson_node_set,label1>::type label_sequence;
+    const label_sequence& i= get<label1>(s);
+
+	label_sequence::iterator itr = i.find(thelabel);
+
+	for(; itr != i.end(); itr++)
+	{
+		if(itr->label1 != thelabel) break;
+		//std::cout<<"\nCluster ID: "<<itr->clusterID<<" Node label: "<<itr->label<<std::endl;
+		result.push_back(*itr);
+	}
+
+	return result;
+}
+
+
+pearson_node get_by_corrrelationValue(
+ const pearson_node_set& s,
+ Real32 theCorrelationValue
+)
+{
+	pearson_node  result;
+	typedef boost::multi_index::index<pearson_node_set,correlationValue>::type correlation_sequence;
+    const correlation_sequence& i= get<correlationValue>(s);
+	correlation_sequence::iterator itr = i.find(theCorrelationValue);
+	if(itr != i.end())
+	{
+		return *itr;
+	}
+	return result;
+}
+
+
+//////////////////////////// END data structures for pearson storage ////////////////////////
+
+/////////////////////////// data structure for pearson degree sort //////////////////////////
+
+struct pearson_degreesort_node
+{
+	std::string label;
+	UInt32 degree;
+	NodeRefPtr theNode;
+
+
+	pearson_degreesort_node(std::string label_,UInt32 degree_,NodeRefPtr theNode_):label(label_),degree(degree_),theNode(theNode_){}
+	pearson_degreesort_node(){}
+
+	friend std::ostream& operator<<(std::ostream& os,const pearson_degreesort_node& n)
+	{
+		os<<n.label<<" "<<n.degree;
+		return os;
+	}
+};
+
+/* tags for accessing the corresponding indices of employee_set */
+
+struct degree{};
+
+typedef multi_index_container<
+  pearson_degreesort_node,
+  indexed_by<
+    ordered_unique<
+	tag<label>,BOOST_MULTI_INDEX_MEMBER(pearson_degreesort_node,std::string,label)>,
+	ordered_non_unique<
+	tag<degree>,BOOST_MULTI_INDEX_MEMBER(pearson_degreesort_node,UInt32,degree)>,
+    ordered_unique<  
+      tag<theNode>, BOOST_MULTI_INDEX_MEMBER(pearson_degreesort_node,NodeRefPtr,theNode)> > 
+> pearson_degreesort_node_set;
+
+
+pearson_degreesort_node get_by_theNode(
+ const pearson_degreesort_node_set& s,
+ NodeRefPtr theNodePtr
+)
+{
+	pearson_degreesort_node  result;
+	typedef boost::multi_index::index<pearson_degreesort_node_set,theNode>::type node_sequence;
+    const node_sequence& i= get<theNode>(s);
+	node_sequence::iterator itr = i.find(theNodePtr);
+	if(itr != i.end())
+	{
+		return *itr;
+	}
+	return result;
+}
+
+pearson_degreesort_node get_by_label(
+ const pearson_degreesort_node_set& s,
+ std::string thelabel
+)
+{
+	pearson_degreesort_node  result;
+	typedef boost::multi_index::index<pearson_degreesort_node_set,label>::type label_sequence;
+    const label_sequence& i= get<label>(s);
+
+	label_sequence::iterator itr = i.find(thelabel);
+
+	if(itr != i.end())
+	{
+		return *itr;
+	}
+	return result;
+}
+
+std::vector<pearson_degreesort_node> get_highestDegreeNodes(
+ const pearson_degreesort_node_set& s
+)
+{
+	std::vector<pearson_degreesort_node> result;
+	typedef boost::multi_index::index<pearson_degreesort_node_set,degree>::type degree_sequence;
+    const degree_sequence& i= get<degree>(s);
+	UInt32 maxvalue = i.begin()->degree;
+	result.push_back(*(i.begin()));
+	/*for(UInt32 in=1;in<s.size();in++)
+	{
+		if(i[in].degree == maxvalue) result.push_back(i[in]);
+	}*/
+
+	return result;
+}
+
+std::vector<pearson_degreesort_node> get_leastDegreeNodes(
+ const pearson_degreesort_node_set& s
+)
+{
+	std::vector<pearson_degreesort_node> result;
+	typedef boost::multi_index::index<pearson_degreesort_node_set,degree>::type degree_sequence;
+    const degree_sequence& i= get<degree>(s);
+	/*UInt32 minvalue = i[s.size()-1].degree;
+	result.push_back(i[s.size()-1]);
+	for(Int32 in=s.size()-2;in>=0;in--)
+	{
+		if(i[in].degree == minvalue) result.push_back(i[in]);
+	}*/
+
+	return result;
+}
+
+/////////////////////////// END data structure for pearson degree sort ///////////////////////
+
 // Forward declaration so we can have the interesting stuff upfront
 void display(SimpleSceneManager *mgr);
 void reshape(Vec2f Size, SimpleSceneManager *mgr);
@@ -210,6 +431,8 @@ enum cameraManipulation {FROM,AT,BOTH};
 enum modes {THE3DBARS,PEARSON_DEGREESORT,PEARSON_CORRELATIONSORT,PEARSON_UNSORTED};
 static int theMode = THE3DBARS;
 node_set nodeDetailsTable;
+pearson_node_set pearsonCorrelationTable;
+pearson_degreesort_node_set pearsonDegreeSortTable;
 NodeRefPtr allTranNode;
 static Int32 biggestCluster = 0;
 static Int32 biggestClusterNoOfNodes = 0;
@@ -440,18 +663,25 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 					highlightedNodes.push_back(theNode);
 				}
 			}
-			detailsTextDOMArea->clear();
-			for(UInt32 i=0;i<highlightedNodes.size();i++)
+			if(theMode == THE3DBARS)
 			{
-				node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
-				std::stringstream in;
-				in<<result.clusterID;
-				std::string ins;
-				in>>ins;
-				detailsTextDOMArea->write("\r\n");
-				detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
-				detailsTextDOMArea->write("Label: " + result.label+"\r\n");
-				detailsTextDOMArea->write("_________________\r\n");
+				detailsTextDOMArea->clear();
+				for(UInt32 i=0;i<highlightedNodes.size();i++)
+				{
+					node result = get_by_theNode(nodeDetailsTable,highlightedNodes[i]); 
+					std::stringstream in;
+					in<<result.clusterID;
+					std::string ins;
+					in>>ins;
+					detailsTextDOMArea->write("\r\n");
+					detailsTextDOMArea->write("Cluster: " + ins +"\r\n");
+					detailsTextDOMArea->write("Label: " + result.label+"\r\n");
+					detailsTextDOMArea->write("_________________\r\n");
+				}
+			}
+			else if(theMode == PEARSON_DEGREESORT)
+			{
+				std::cout<<"thats soo kool!"<<std::endl;
 			}
 	    }
     }
@@ -1035,7 +1265,147 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 		}
 		else if(theMode == PEARSON_DEGREESORT)
 		{
+			std::string label1,label2;
+			Real32 correlationValue;
+			CellRefPtr rootCell = TheTableDomArea->getTableDOMModel()->getRootCell();
+			Int32 rows = rootCell->getMaximumRow();
+			Int32 cols = rootCell->getMaximumColumn();
+
+			cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
+
+			if(cols!=3) 
+			{
+				SWARNING<<"Its not a pearson correlation file"<<std::endl;
+				return;
+			}
+
+			for(UInt32 i=0;i<rows;i++)
+			{	
+				CellRefPtr theRow = rootCell->getCell(i);
+				if(theRow)
+				{
+
+					CellRefPtr theCell = theRow->getCell(0);
+					if(theCell)
+					{
+						label1 = boost::any_cast<std::string>(theCell->getValue());
+						if(label1 == "") 
+						{
+							SWARNING<<"Its not a pearson correlation file"<<std::endl;
+							return;
+						}
+					}
+					else
+					{
+						SWARNING<<"Its not a pearson correlation file"<<std::endl;
+						return;
+					}
+
+					theCell = theRow->getCell(1);
+					if(theCell)
+					{
+						label2 = boost::any_cast<std::string>(theCell->getValue());
+						if(label2 == "") 
+						{
+							SWARNING<<"Its not a pearson correlation file"<<std::endl;
+							return;
+						}
+					}
+					else
+					{
+						SWARNING<<"Its not a pearson correlation file"<<std::endl;
+						return;
+					}
+
+					theCell = theRow->getCell(2);
+					Real32 f;
+					if(theCell)
+					{
+						if(sscanf((boost::any_cast<std::string>(theCell->getValue())).c_str(),"%f", &f) != 0)  //It's a float.
+						{
+							correlationValue = f;
+						}
+						else
+						{
+							SWARNING<<"Its not a pearson correlation file"<<std::endl;
+							return;
+						}
+					}
+					else
+					{
+						SWARNING<<"Its not a pearson correlation file"<<std::endl;
+						return;
+					}
+
+					// valid values in label1,label2 and correlationValue
+					// inserting into the datastructure
+
+					pearsonCorrelationTable.insert(pearson_node(label1,label2,correlationValue,NULL));
+					
+				}
+			} // inserted all rows of the table into the datastructure
+
+			//populate the degreesort table.
 			
+
+			const pearson_node_set::nth_index<0>::type& k=pearsonCorrelationTable.get<0>();
+
+			pearson_node_set::nth_index<0>::type::iterator itr = k.begin();
+
+			Int32 degree = 0;
+			std::string temp = "";
+
+			for(; itr != k.end(); itr++)
+			{
+				if(itr->label1 == temp)
+				{
+					continue;
+				}
+				else
+				{
+					temp = itr->label1;
+					degree = (get_by_label(pearsonCorrelationTable, temp)).size();
+
+					NodeRefPtr theGeometryNode= makeBox(cubeSize * degree, cubeSize, cubeSize, 1, 1, 1);
+					dynamic_cast<Geometry*>(theGeometryNode->getCore())->setMaterial(createGreenMaterial());
+
+					pearsonDegreeSortTable.insert(pearson_degreesort_node(temp,degree,theGeometryNode));
+				}
+			}
+
+			// now since the degreesort table is populated, display the nodes.
+
+			const pearson_degreesort_node_set::nth_index<1>::type& j=pearsonDegreeSortTable.get<1>();
+
+			pearson_degreesort_node_set::nth_index<1>::type::iterator itr2 = j.begin();
+
+			UInt32 widthOfRow = 0;
+
+			Matrix mat;
+			mat.setTranslate(0,0,0);//-1* cubeSize/2.f, -1* pearsonDegreeSortTable.size() * cubeSize/2.f ,-1* cubeSize/2.f);
+			TransformRefPtr allTranCore = Transform::create();
+			allTranCore->setMatrix(mat);
+			allTranNode = Node::create();
+			allTranNode->setCore(allTranCore);
+
+			UInt32 count = 0;
+			for(; itr2 != j.end(); itr2++,count++)
+			{
+
+				Matrix mat;
+				mat.setTranslate(itr2->degree * cubeSize/2,count * cubeSize + count * 5,0.0);
+				TransformRefPtr theRowTranCore = Transform::create();
+				theRowTranCore->setMatrix(mat);
+				NodeRefPtr theRowTranNode = Node::create();
+				theRowTranNode->setCore(theRowTranCore);
+
+				theRowTranNode->addChild(itr2->theNode);
+
+				allTranNode->addChild(theRowTranNode);
+			
+			}
+		
+			scene->addChild(allTranNode);
 		}
 		else if(theMode == PEARSON_UNSORTED)
 		{
@@ -1093,6 +1463,12 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 	biggestClusterNoOfNodes = 0;
 	smallestCluster = 99999;
 	smallestClusterNoOfNodes = 99999;
+	pearsonCorrelationTable.clear();
+	highestDegree = "Highest Degree";
+	highestDegreeValue = 0;
+	leastDegree = "Least Degree";
+	leastDegreeValue = 99999;
+
 
 	removingPreviouScene(scene);
 	create3DScene(/*TheTableDomArea,*/mgr,scene,TutorialWindow);
@@ -1690,15 +2066,7 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		StatisticsInternalWindow->setLayout(PanelFlowLayout2);
 		
 	}
-	else if(theMode == PEARSON_CORRELATIONSORT)
-	{
-
-	}
-	else if(theMode == PEARSON_UNSORTED)
-	{
-
-	}
-	else if(theMode == PEARSON_DEGREESORT)
+	else if(theMode == PEARSON_DEGREESORT || theMode == PEARSON_CORRELATIONSORT || theMode == PEARSON_UNSORTED)
 	{
 		// Details : 
 		// Highest Degree node - The value - 2 labels 
@@ -1706,15 +2074,14 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		// given a node - display details - label + textarea + button + TextDomArea
 		// all in a grid layout
 
+		std::stringstream iss;
+
 		LabelRefPtr highestDegreeLabel = Label::create();
 		highestDegreeLabel->setMinSize(Vec2f(50, 25));
 		highestDegreeLabel->setMaxSize(Vec2f(250, 100));
 		highestDegreeLabel->setPreferredSize(Vec2f(200, 20));
 		highestDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
-		std::string highestDegreeS;
-		std::stringstream iss(highestDegree);
-		iss>>highestDegreeS;
-		highestDegreeLabel->setText("Highest Degree Node: " + highestDegreeS);
+		highestDegreeLabel->setText("Highest Degree Node: " + highestDegree);
 
 		LabelRefPtr highestDegreeValueLabel = Label::create();
 		highestDegreeValueLabel->setMinSize(Vec2f(50, 25));
@@ -1732,11 +2099,7 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		leastDegreeLabel->setMaxSize(Vec2f(250, 100));
 		leastDegreeLabel->setPreferredSize(Vec2f(200, 20));
 		leastDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
-		std::string leastDegreeS;
-		iss.clear();
-		iss<<(leastDegree);
-		iss>>leastDegreeS;
-		leastDegreeLabel->setText("Least Degree Node: " + leastDegreeS);
+		leastDegreeLabel->setText("Least Degree Node: " + leastDegree);
 
 		LabelRefPtr leastDegreeValueLabel = Label::create();
 		leastDegreeValueLabel->setMinSize(Vec2f(50, 25));
@@ -1821,6 +2184,13 @@ void handleNewProject(ActionEventDetails* const details,WindowEventProducer* con
 	biggestClusterNoOfNodes = 0;
 	smallestCluster = 99999;
 	smallestClusterNoOfNodes = 99999;
+
+	pearsonCorrelationTable.clear();
+	highestDegree = "Highest Degree";
+	highestDegreeValue = 0;
+	leastDegree = "Least Degree";
+	leastDegreeValue = 99999;
+
 	removingPreviouScene(scene);
 
 	isVisualized = false;
