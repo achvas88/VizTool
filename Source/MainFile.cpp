@@ -442,6 +442,20 @@ static std::string highestDegree = "Highest Degree";
 static Int32 highestDegreeValue = 0;
 static std::string leastDegree = "Least Degree";
 static Int32 leastDegreeValue = 99999;
+static std::string highestCorrelated = "Highest Correlated";
+static Real32 highestCorrelatedValue = -99999.999;
+static std::string leastCorrelated = "Least Correlated";
+static Real32 leastCorrelatedValue = 99999.999;
+
+LabelRefPtr highestDegreeValueLabel;
+LabelRefPtr leastDegreeValueLabel;
+LabelRefPtr highestDegreeLabel;
+LabelRefPtr leastDegreeLabel;
+
+LabelRefPtr highestCorrelatedValueLabel;
+LabelRefPtr leastCorrelatedValueLabel;
+LabelRefPtr highestCorrelatedLabel;
+LabelRefPtr leastCorrelatedLabel;
 
 std::vector<NodeRefPtr> highlightedNodes;
 ViewportRefPtr TutorialViewport;
@@ -460,7 +474,7 @@ InternalWindowRefPtr StatisticsInternalWindow;
 ChunkMaterialRefPtr createGreenMaterial(void);
 ChunkMaterialRefPtr createYellowMaterial(void);
 
-		// The Menubar Declarations
+// The Menubar Declarations
 MenuBarRefPtr	_MainMenuBar;
 
 // The Menus Declarations
@@ -494,6 +508,7 @@ bool isNotepadWindowVisible(void);
 void xmlExportScene(WindowEventProducer* const TutorialWindow);
 InternalWindowTransitPtr createStatisticsWindow(void);
 
+static bool pearsonCorrelationTablePopulated = false;
 
 void handleBasicAction(ActionEventDetails* const details,WindowEventProducer* const TutorialWindow,UIDrawingSurface* const TutorialDrawingSurface)
 {
@@ -519,7 +534,9 @@ void handleBasicAction(ActionEventDetails* const details,WindowEventProducer* co
 	else if(details->getSource() == _CorrelationSortItem)
 	{
 		theMode = PEARSON_CORRELATIONSORT;
-		std::cout<<"\nView Mode changed to PEARSON_CORRELATIONSORT\n";
+		TutorialDrawingSurface->closeWindow(StatisticsInternalWindow);
+		StatisticsInternalWindow = createStatisticsWindow();
+		TutorialDrawingSurface->openWindow(StatisticsInternalWindow);
 	}
 	else if(details->getSource() == _3dBarsItem)
 	{
@@ -619,14 +636,6 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
     }
 	if(e->getButton() == MouseEventDetails::BUTTON1)
     {
-		/*if(!(dynamic_cast<WindowEventProducer*>(e->getSource())->getKeyModifiers() & KeyEventDetails::KEY_MODIFIER_CONTROL))
-		{
-			for(int i=0;i<highlightedNodes.size();i++)
-			{
-				dynamic_cast<Geometry*>(highlightedNodes[i]->getCore())->setMaterial(createGreenMaterial());
-			}
-			highlightedNodes.clear();
-		}*/
 
         Line ViewRay;
 
@@ -681,7 +690,38 @@ void mousePressed(MouseEventDetails* const e, SimpleSceneManager *mgr)
 			}
 			else if(theMode == PEARSON_DEGREESORT)
 			{
-				std::cout<<"thats soo kool!"<<std::endl;
+				detailsTextDOMArea->clear();
+				for(UInt32 i=0;i<highlightedNodes.size();i++)
+				{
+					pearson_degreesort_node result = get_by_theNode(pearsonDegreeSortTable,highlightedNodes[i]);
+
+					detailsTextDOMArea->write("the Entity: " + result.label + "\r\n");
+					char theDegreeC[255];
+					sprintf(theDegreeC,"%d",result.degree);
+					std::string theDegreeS= theDegreeC;
+					detailsTextDOMArea->write("the Degree: " + theDegreeS + "\r\n");
+					detailsTextDOMArea->write("\r\n");
+					detailsTextDOMArea->write("Connected entities: \r\n");
+					//detailsTextDOMArea->write("\r\n");
+
+					std::stringstream iss;
+					std::string correlationValueS;
+
+					std::vector<pearson_node> connectedNodesList = get_by_label(pearsonCorrelationTable,result.label);
+
+					for(UInt32 i=0;i<connectedNodesList.size();i++)
+					{
+						iss.clear();
+						iss<<connectedNodesList[i].correlationValue;
+						iss>>correlationValueS;
+
+						detailsTextDOMArea->write(connectedNodesList[i].label2+"\r\n");
+						detailsTextDOMArea->write("Corr Value: "+ correlationValueS +"\r\n");
+					}
+
+					detailsTextDOMArea->write("_________________\r\n");
+
+				}
 			}
 	    }
     }
@@ -950,16 +990,6 @@ void keyTyped(KeyEventDetails* const details, SimpleSceneManager *mgr,SplitPanel
     {
 		mgr->showAll();
     }
-	/*if(details->getKey() == KeyEventDetails::KEY_N && details->getModifiers() &
-       KeyEventDetails::KEY_MODIFIER_COMMAND)
-	{
-		if(isNotepadWindowVisible() == true)
-			setNotepadWindowVisible(false,TutorialDrawingSurface,TutorialWindow);
-		else
-			setNotepadWindowVisible(true,TutorialDrawingSurface,TutorialWindow);
-	}*/
-	//mgr->redraw();
-	
 }
 
 
@@ -980,6 +1010,8 @@ void handleLoadDatasetButtonAction(ActionEventDetails* const details,
     if(FilesToOpen.size() > 0)
     {
 	    TheTableDomArea->loadFile(FilesToOpen[0]);
+		pearsonCorrelationTable.clear();
+		pearsonCorrelationTablePopulated = false;
 		datasetPath = FilesToOpen[0].string();
     }
 }
@@ -1164,6 +1196,95 @@ void populatePoints()
 
 
 
+void populatePearsonCorrelationTable()
+{
+	pearsonCorrelationTablePopulated = true;
+	std::string label1,label2;
+	Real32 correlationValue;
+	CellRefPtr rootCell = TheTableDomArea->getTableDOMModel()->getRootCell();
+	Int32 rows = rootCell->getMaximumRow();
+	Int32 cols = rootCell->getMaximumColumn();
+
+	cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
+
+	if(cols!=3) 
+	{
+		SWARNING<<"Its not a pearson correlation file"<<std::endl;
+		return;
+	}
+
+	for(UInt32 i=0;i<rows;i++)
+	{	
+		CellRefPtr theRow = rootCell->getCell(i);
+		if(theRow)
+		{
+
+			CellRefPtr theCell = theRow->getCell(0);
+			if(theCell)
+			{
+				label1 = boost::any_cast<std::string>(theCell->getValue());
+				if(label1 == "") 
+				{
+					SWARNING<<"Its not a pearson correlation file"<<std::endl;
+					return;
+				}
+			}
+			else
+			{
+				SWARNING<<"Its not a pearson correlation file"<<std::endl;
+				return;
+			}
+
+			theCell = theRow->getCell(1);
+			if(theCell)
+			{
+				label2 = boost::any_cast<std::string>(theCell->getValue());
+				if(label2 == "") 
+				{
+					SWARNING<<"Its not a pearson correlation file"<<std::endl;
+					return;
+				}
+			}
+			else
+			{
+				SWARNING<<"Its not a pearson correlation file"<<std::endl;
+				return;
+			}
+
+			theCell = theRow->getCell(2);
+			Real32 f;
+			if(theCell)
+			{
+				if(sscanf((boost::any_cast<std::string>(theCell->getValue())).c_str(),"%f", &f) != 0)  //It's a float.
+				{
+					correlationValue = f;
+				}
+				else
+				{
+					SWARNING<<"Its not a pearson correlation file"<<std::endl;
+					return;
+				}
+			}
+			else
+			{
+				SWARNING<<"Its not a pearson correlation file"<<std::endl;
+				return;
+			}
+
+			// valid values in label1,label2 and correlationValue
+			// inserting into the datastructure
+			NodeRefPtr theGeometryNode= makeBox(cubeSize, cubeSize, cubeSize, 1, 1, 1);
+			dynamic_cast<Geometry*>(theGeometryNode->getCore())->setMaterial(createGreenMaterial());
+
+
+			pearsonCorrelationTable.insert(pearson_node(label1,label2,correlationValue,theGeometryNode));
+			
+		}
+	} // inserted all rows of the table into the datastructure
+
+}
+
+
 void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 							SimpleSceneManager* mgr,
 							Node* scene,
@@ -1261,93 +1382,54 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 		}
 		else if(theMode == PEARSON_CORRELATIONSORT)
 		{
+			if(!pearsonCorrelationTablePopulated)
+				populatePearsonCorrelationTable();
+			
+			const pearson_node_set::nth_index<2>::type& k=pearsonCorrelationTable.get<2>();
+
+			pearson_node_set::nth_index<2>::type::iterator itr2 = k.begin();
+
+			/*for(; itr != k.end(); itr++)
+			{
+			}*/
+
+			itr2 = k.end();
+
+			itr2 --;
+			
+
+			highestCorrelated = itr2->label1 + "," + itr2->label2;
+			highestCorrelatedLabel->setText("Highest Corr Nodes: " + highestCorrelated );
+
+			highestCorrelatedValue = itr2->correlationValue;
+			std::stringstream iss;
+			std::string highestCorrelatedValueS;
+			iss.clear();
+			iss<<(highestCorrelatedValue);
+			iss>>highestCorrelatedValueS;
+			highestCorrelatedValueLabel->setText("Value: " + highestCorrelatedValueS);
+
+			itr2 = k.begin();
+			
+
+			leastCorrelated = itr2->label1 + "," + itr2->label2;
+			leastCorrelatedLabel->setText("Least Corr Nodes: " + leastCorrelated);
+
+			leastCorrelatedValue = itr2->correlationValue;
+			std::string leastCorrelatedValueS;
+			iss.clear();
+			iss<<(leastCorrelatedValue);
+			iss>>leastCorrelatedValueS;
+			leastCorrelatedValueLabel->setText("Value: " + leastCorrelatedValueS);
+
 			
 		}
 		else if(theMode == PEARSON_DEGREESORT)
 		{
-			std::string label1,label2;
-			Real32 correlationValue;
-			CellRefPtr rootCell = TheTableDomArea->getTableDOMModel()->getRootCell();
-			Int32 rows = rootCell->getMaximumRow();
-			Int32 cols = rootCell->getMaximumColumn();
-
-			cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
-
-			if(cols!=3) 
-			{
-				SWARNING<<"Its not a pearson correlation file"<<std::endl;
-				return;
-			}
-
-			for(UInt32 i=0;i<rows;i++)
-			{	
-				CellRefPtr theRow = rootCell->getCell(i);
-				if(theRow)
-				{
-
-					CellRefPtr theCell = theRow->getCell(0);
-					if(theCell)
-					{
-						label1 = boost::any_cast<std::string>(theCell->getValue());
-						if(label1 == "") 
-						{
-							SWARNING<<"Its not a pearson correlation file"<<std::endl;
-							return;
-						}
-					}
-					else
-					{
-						SWARNING<<"Its not a pearson correlation file"<<std::endl;
-						return;
-					}
-
-					theCell = theRow->getCell(1);
-					if(theCell)
-					{
-						label2 = boost::any_cast<std::string>(theCell->getValue());
-						if(label2 == "") 
-						{
-							SWARNING<<"Its not a pearson correlation file"<<std::endl;
-							return;
-						}
-					}
-					else
-					{
-						SWARNING<<"Its not a pearson correlation file"<<std::endl;
-						return;
-					}
-
-					theCell = theRow->getCell(2);
-					Real32 f;
-					if(theCell)
-					{
-						if(sscanf((boost::any_cast<std::string>(theCell->getValue())).c_str(),"%f", &f) != 0)  //It's a float.
-						{
-							correlationValue = f;
-						}
-						else
-						{
-							SWARNING<<"Its not a pearson correlation file"<<std::endl;
-							return;
-						}
-					}
-					else
-					{
-						SWARNING<<"Its not a pearson correlation file"<<std::endl;
-						return;
-					}
-
-					// valid values in label1,label2 and correlationValue
-					// inserting into the datastructure
-
-					pearsonCorrelationTable.insert(pearson_node(label1,label2,correlationValue,NULL));
-					
-				}
-			} // inserted all rows of the table into the datastructure
-
-			//populate the degreesort table.
+			if(!pearsonCorrelationTablePopulated)
+				populatePearsonCorrelationTable();
 			
-
+			//populate the degreesort table.
 			const pearson_node_set::nth_index<0>::type& k=pearsonCorrelationTable.get<0>();
 
 			pearson_node_set::nth_index<0>::type::iterator itr = k.begin();
@@ -1406,6 +1488,37 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 			}
 		
 			scene->addChild(allTranNode);
+
+			itr2 = j.end();
+
+			itr2 --;
+			
+
+			highestDegree = boost::any_cast<std::string>(itr2->label);
+			highestDegreeLabel->setText("Highest Degree Node: " + highestDegree );
+
+			highestDegreeValue = itr2->degree;
+			std::stringstream iss;
+			std::string highestDegreeValueS;
+			iss.clear();
+			iss<<(highestDegreeValue);
+			iss>>highestDegreeValueS;
+			highestDegreeValueLabel->setText("Value: " + highestDegreeValueS);
+
+			itr2 = j.begin();
+			
+
+			leastDegree = boost::any_cast<std::string>(itr2->label);
+			leastDegreeLabel->setText("Least Degree Node: " + leastDegree);
+
+			leastDegreeValue = itr2->degree;
+			std::string leastDegreeValueS;
+			iss.clear();
+			iss<<(leastDegreeValue);
+			iss>>leastDegreeValueS;
+			leastDegreeValueLabel->setText("Value: " + leastDegreeValueS);
+
+
 		}
 		else if(theMode == PEARSON_UNSORTED)
 		{
@@ -1463,11 +1576,11 @@ void handleVisualizeButtonAction(ActionEventDetails* const details,
 	biggestClusterNoOfNodes = 0;
 	smallestCluster = 99999;
 	smallestClusterNoOfNodes = 99999;
-	pearsonCorrelationTable.clear();
+	/*pearsonCorrelationTable.clear();
 	highestDegree = "Highest Degree";
 	highestDegreeValue = 0;
 	leastDegree = "Least Degree";
-	leastDegreeValue = 99999;
+	leastDegreeValue = 99999;*/
 
 
 	removingPreviouScene(scene);
@@ -1912,6 +2025,59 @@ void handlenodeIDGoButtonButtonAction(ActionEventDetails* const details,TextFiel
 
 }
 
+void handlenodeIDGoButtonButtonAction2(ActionEventDetails* const details,TextField* nodeIDField)
+{
+	for(int i=0;i<highlightedNodes.size();i++)
+	{
+		dynamic_cast<Geometry*>(highlightedNodes[i]->getCore())->setMaterial(createGreenMaterial());
+	}
+	highlightedNodes.clear();
+
+	std::string nodeString = nodeIDField->getText();
+
+	pearson_degreesort_node result = get_by_label(pearsonDegreeSortTable,nodeString);
+
+	if(result.label == "") 
+	{
+		detailsTextDOMArea->clear();
+		detailsTextDOMArea->write("Error: Node not found\r\n");
+	}
+	else
+	{
+		detailsTextDOMArea->clear();
+
+		char theDegreeC[255];
+		sprintf(theDegreeC,"%d",result.degree);
+		std::string theDegreeS= theDegreeC;
+		detailsTextDOMArea->write("the Degree:" + theDegreeS + "\r\n");
+		detailsTextDOMArea->write("\r\n");
+		detailsTextDOMArea->write("Connected entities: \r\n");
+		//detailsTextDOMArea->write("\r\n");
+
+		std::stringstream iss;
+		std::string correlationValueS;
+
+		std::vector<pearson_node> connectedNodesList = get_by_label(pearsonCorrelationTable,result.label);
+
+		for(UInt32 i=0;i<connectedNodesList.size();i++)
+		{
+			iss.clear();
+			iss<<connectedNodesList[i].correlationValue;
+			iss>>correlationValueS;
+
+			detailsTextDOMArea->write(connectedNodesList[i].label2+"\r\n");
+			detailsTextDOMArea->write("Corr Value: "+ correlationValueS +"\r\n");
+		}
+
+		dynamic_cast<Geometry*>(result.theNode->getCore())->setMaterial(createYellowMaterial());
+		highlightedNodes.push_back(result.theNode);
+
+		detailsTextDOMArea->write("_________________\r\n");
+		
+	}
+
+}
+
 
 InternalWindowTransitPtr createStatisticsWindow(void)
 {
@@ -1926,16 +2092,6 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 
 	if(theMode == THE3DBARS)
 	{
-		/*LabelRefPtr statLabel = Label::create();
-		statLabel->setMinSize(Vec2f(50, 25));
-		statLabel->setMaxSize(Vec2f(200, 100));
-		statLabel->setPreferredSize(Vec2f(150, 20));
-		statLabel->setAlignment(Vec2f(0.0f,0.5f));
-		statLabel->setText("Statistics");*/
-
-		//biggestCluster;
-		//biggestClusterNoOfNodes;
-
 		LabelRefPtr biggestClusterLabel = Label::create();
 		biggestClusterLabel->setMinSize(Vec2f(50, 25));
 		biggestClusterLabel->setMaxSize(Vec2f(200, 100));
@@ -2066,24 +2222,101 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		StatisticsInternalWindow->setLayout(PanelFlowLayout2);
 		
 	}
-	else if(theMode == PEARSON_DEGREESORT || theMode == PEARSON_CORRELATIONSORT || theMode == PEARSON_UNSORTED)
+	else if(theMode == PEARSON_CORRELATIONSORT )
+	{
+		// Details : 
+		// Highest Correlated nodes - The value - 2 labels 
+		// Least Correlated nodes - The value - 2 labels
+		// PanelList
+		// Details TextDomArea
+
+		std::stringstream iss;
+
+		highestCorrelatedLabel = Label::create();
+		highestCorrelatedLabel->setMinSize(Vec2f(50, 25));
+		highestCorrelatedLabel->setMaxSize(Vec2f(250, 100));
+		highestCorrelatedLabel->setPreferredSize(Vec2f(200, 20));
+		highestCorrelatedLabel->setAlignment(Vec2f(0.5f,0.0f));
+		highestCorrelatedLabel->setText("Highest Correlated Node: " + highestCorrelated);
+
+		highestCorrelatedValueLabel = Label::create();
+		highestCorrelatedValueLabel->setMinSize(Vec2f(50, 25));
+		highestCorrelatedValueLabel->setMaxSize(Vec2f(200, 100));
+		highestCorrelatedValueLabel->setPreferredSize(Vec2f(150, 20));
+		highestCorrelatedValueLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string highestCorrelatedValueS;
+		iss.clear();
+		iss<<(highestCorrelatedValue);
+		iss>>highestCorrelatedValueS;
+		highestCorrelatedValueLabel->setText("Value: " + highestCorrelatedValueS);
+
+		leastCorrelatedLabel = Label::create();
+		leastCorrelatedLabel->setMinSize(Vec2f(50, 25));
+		leastCorrelatedLabel->setMaxSize(Vec2f(250, 100));
+		leastCorrelatedLabel->setPreferredSize(Vec2f(200, 20));
+		leastCorrelatedLabel->setAlignment(Vec2f(0.5f,0.0f));
+		leastCorrelatedLabel->setText("Least Correlated Node: " + leastCorrelated);
+
+		leastCorrelatedValueLabel = Label::create();
+		leastCorrelatedValueLabel->setMinSize(Vec2f(50, 25));
+		leastCorrelatedValueLabel->setMaxSize(Vec2f(200, 100));
+		leastCorrelatedValueLabel->setPreferredSize(Vec2f(150, 20));
+		leastCorrelatedValueLabel->setAlignment(Vec2f(0.5f,0.0f));
+		std::string leastCorrelatedValueS;
+		iss.clear();
+		iss<<(leastCorrelatedValue);
+		iss>>leastCorrelatedValueS;
+		leastCorrelatedValueLabel->setText("Value: " + leastCorrelatedValueS);
+
+		LabelRefPtr detailsLabel = Label::create();
+		detailsLabel->setMinSize(Vec2f(50, 25));
+		detailsLabel->setMaxSize(Vec2f(200, 100));
+		detailsLabel->setPreferredSize(Vec2f(150, 20));
+		detailsLabel->setText("Details:");
+
+		detailsTextDOMArea = AdvancedTextDomArea::create();
+		detailsTextDOMArea->setPreferredSize(Vec2f(200,200));
+		detailsTextDOMArea->setEditable(false);
+		detailsTextDOMArea->setText("Details");
+
+		ScrollPanelRefPtr detailsTextDOMAreaScrollPanel = ScrollPanel::create();
+		detailsTextDOMAreaScrollPanel->setPreferredSize(Vec2f(150,150));
+		detailsTextDOMAreaScrollPanel->setViewComponent(detailsTextDOMArea);
+
+
+		FlowLayoutRefPtr PanelFlowLayout2 = OSG::FlowLayout::create();
+		PanelFlowLayout2->setHorizontalGap(3);
+		PanelFlowLayout2->setVerticalGap(3);
+
+		StatisticsInternalWindow->pushToChildren(highestCorrelatedLabel);
+		StatisticsInternalWindow->pushToChildren(highestCorrelatedValueLabel);
+		StatisticsInternalWindow->pushToChildren(leastCorrelatedLabel);
+		StatisticsInternalWindow->pushToChildren(leastCorrelatedValueLabel);
+		StatisticsInternalWindow->pushToChildren(detailsLabel);
+		StatisticsInternalWindow->pushToChildren(detailsTextDOMAreaScrollPanel);
+		StatisticsInternalWindow->setLayout(PanelFlowLayout2);
+
+		
+	}
+	else if(theMode == PEARSON_DEGREESORT || theMode == PEARSON_UNSORTED)
 	{
 		// Details : 
 		// Highest Degree node - The value - 2 labels 
 		// Least Degree node - The value - 2 labels
 		// given a node - display details - label + textarea + button + TextDomArea
 		// all in a grid layout
+				
 
 		std::stringstream iss;
 
-		LabelRefPtr highestDegreeLabel = Label::create();
+		highestDegreeLabel = Label::create();
 		highestDegreeLabel->setMinSize(Vec2f(50, 25));
 		highestDegreeLabel->setMaxSize(Vec2f(250, 100));
 		highestDegreeLabel->setPreferredSize(Vec2f(200, 20));
 		highestDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
 		highestDegreeLabel->setText("Highest Degree Node: " + highestDegree);
 
-		LabelRefPtr highestDegreeValueLabel = Label::create();
+		highestDegreeValueLabel = Label::create();
 		highestDegreeValueLabel->setMinSize(Vec2f(50, 25));
 		highestDegreeValueLabel->setMaxSize(Vec2f(200, 100));
 		highestDegreeValueLabel->setPreferredSize(Vec2f(150, 20));
@@ -2094,14 +2327,14 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		iss>>highestDegreeValueS;
 		highestDegreeValueLabel->setText("Value: " + highestDegreeValueS);
 
-		LabelRefPtr leastDegreeLabel = Label::create();
+		leastDegreeLabel = Label::create();
 		leastDegreeLabel->setMinSize(Vec2f(50, 25));
 		leastDegreeLabel->setMaxSize(Vec2f(250, 100));
 		leastDegreeLabel->setPreferredSize(Vec2f(200, 20));
 		leastDegreeLabel->setAlignment(Vec2f(0.5f,0.0f));
 		leastDegreeLabel->setText("Least Degree Node: " + leastDegree);
 
-		LabelRefPtr leastDegreeValueLabel = Label::create();
+		leastDegreeValueLabel = Label::create();
 		leastDegreeValueLabel->setMinSize(Vec2f(50, 25));
 		leastDegreeValueLabel->setMaxSize(Vec2f(200, 100));
 		leastDegreeValueLabel->setPreferredSize(Vec2f(150, 20));
@@ -2128,7 +2361,7 @@ InternalWindowTransitPtr createStatisticsWindow(void)
 		nodeIDGoButton->setMaxSize(Vec2f(200, 100));
 		nodeIDGoButton->setPreferredSize(Vec2f(150, 20));
 		nodeIDGoButton->setText("Go >>");
-		//nodeIDGoButton->connectActionPerformed(boost::bind(handlenodeIDGoButtonButtonAction, _1,nodeIDTextField.get()));
+		nodeIDGoButton->connectActionPerformed(boost::bind(handlenodeIDGoButtonButtonAction2, _1,nodeIDTextField.get()));
 
 		LabelRefPtr detailsLabel = Label::create();
 		detailsLabel->setMinSize(Vec2f(50, 25));
@@ -2190,6 +2423,11 @@ void handleNewProject(ActionEventDetails* const details,WindowEventProducer* con
 	highestDegreeValue = 0;
 	leastDegree = "Least Degree";
 	leastDegreeValue = 99999;
+	highestCorrelated = "Highest Correlated";
+	highestCorrelatedValue = 0;
+	leastCorrelated = "Least Correlated";
+	leastCorrelatedValue = 99999;
+
 
 	removingPreviouScene(scene);
 
