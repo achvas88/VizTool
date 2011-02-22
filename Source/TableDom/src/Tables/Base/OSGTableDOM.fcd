@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="TableDOM"
+	parent="AttachmentContainer"
+    library="ContribTableDom"
+    pointerfieldtypes="both"
+	structure="abstract"
+    systemcomponent="true"
+    parentsystemcomponent="true"
+    decoratable="false"
+    useLocalIncludes="false"
+    isNodeCore="false"
+    authors="David Kabala (djkabala@gmail.com)                             Achyuthan Vasanth (achvas88@gmail.com)"
+>
+UI Table.
+	<Field
+		name="RootCell"
+		type="Cell"
+		category="pointer"
+		cardinality="single"
+		visibility="external"
+		access="public"
+	>
+	</Field>
+	<ProducedEvent
+		name="Changed"
+		detailsType="TableDOMEventDetails"
+		consumable="true"
+	>
+	</ProducedEvent>
+	<ProducedEvent
+		name="Insert"
+		detailsType="TableDOMEventDetails"
+		consumable="true"
+	>
+	</ProducedEvent>
+	<ProducedEvent
+		name="Remove"
+		detailsType="TableDOMEventDetails"
+		consumable="true"
+	>
+	</ProducedEvent>
+	<ProducedEvent
+		name="UndoableEditHappened"
+		detailsType="UndoableEditEventDetails"
+		consumable="true"
+	>
+	</ProducedEvent>
+</FieldContainer>

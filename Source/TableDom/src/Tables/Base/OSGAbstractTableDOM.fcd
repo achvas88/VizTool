@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="AbstractTableDOM"
+	parent="TableDOM"
+    library="ContribTableDom"
+    pointerfieldtypes="both"
+	structure="abstract"
+    systemcomponent="true"
+    parentsystemcomponent="false"
+    decoratable="false"
+    useLocalIncludes="false"
+    isNodeCore="false"
+    authors="David Kabala (djkabala@gmail.com)                             "
+>
+UI AbstractTableDOM.
+	
+</FieldContainer>

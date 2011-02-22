@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="AbstractCell"
+	parent="Cell"
+    library="ContribTableDom"
+    pointerfieldtypes="both"
+	structure="abstract"
+    systemcomponent="true"
+    parentsystemcomponent="false"
+    decoratable="false"
+    useLocalIncludes="false"
+    isNodeCore="false"
+    authors="David Kabala (djkabala@gmail.com)                             "
+>
+Table AbstractCell
+	<Field
+		name="ParentTableDOM"
+		type="TableDOM"
+		category="pointer"
+		cardinality="single"
+		visibility="external"
+		defaultValue="NULL"
+		access="protected"
+	>
+	</Field>
+	<Field
+		name="AllwaysRedrawViewport"
+		type="bool"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="public"
+		defaultValue="true"
+	>
+	</Field>
+</FieldContainer>

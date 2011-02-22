@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="AbstractLeafCell"
+	parent="AbstractCell"
+    library="ContribTableDom"
+    pointerfieldtypes="both"
+	structure="abstract"
+    systemcomponent="true"
+    parentsystemcomponent="false"
+    decoratable="false"
+    useLocalIncludes="false"
+    isNodeCore="false"
+    authors="David Kabala (djkabala@gmail.com)                             "
+>
+Table Cell
+	
+</FieldContainer>

@@ -153,7 +153,7 @@ int main(int argc, char **argv)
         MainInternalWindowBackground->setColor(Color4f(1.0,1.0,1.0,0.5));
 
     InternalWindowRefPtr MainInternalWindow = OSG::InternalWindow::create();
-       MainInternalWindow->pushToChildren(ExampleList);
+       MainInternalWindow->pushToChildren(ExampleScrollPanel);
        MainInternalWindow->setLayout(MainInternalWindowLayout);
        MainInternalWindow->setBackgrounds(MainInternalWindowBackground);
 	   MainInternalWindow->setAlignmentInDrawingSurface(Vec2f(0.5f,0.5f));

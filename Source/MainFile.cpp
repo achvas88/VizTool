@@ -88,6 +88,9 @@
 
 #define MAXCUBESIZE 625.0
 
+#define GRAPHHEIGHT 1000
+#define GRAPHWIDTH  1000
+
 using boost::multi_index_container;
 using namespace boost::multi_index;
 
@@ -427,6 +430,8 @@ void reshape(Vec2f Size, SimpleSceneManager *mgr);
 
 std::map< Int32,Pnt3f > cubePoints;
 float cubeSize = 25.f;
+float cubeWidth = 1.f;
+float cubeHeight = 1.f;
 enum cameraManipulation {FROM,AT,BOTH};
 enum modes {THE3DBARS,PEARSON_DEGREESORT,PEARSON_CORRELATIONSORT,PEARSON_UNSORTED};
 static int theMode = THE3DBARS;
@@ -1298,9 +1303,11 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 			Int32 rows = rootCell->getMaximumRow();
 			Int32 cols = rootCell->getMaximumColumn();
 
-			cubeSize = MAXCUBESIZE/(rows * cols * 1.f);
+			cubeWidth = GRAPHWIDTH / cols * 1.f;
+			cubeHeight = GRAPHHEIGHT/ rows * 1.f;
+			
 			Matrix mat;
-			mat.setTranslate(-1* cubeSize/2.f, -1* rows * cubeSize/2.f ,-1* cubeSize/2.f);
+			mat.setTranslate(-1* GRAPHWIDTH/2.f , -1* GRAPHHEIGHT/2.f ,-50);
 			TransformRefPtr allTranCore = Transform::create();
 			allTranCore->setMatrix(mat);
 			allTranNode = Node::create();
@@ -1309,7 +1316,7 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 			for(Int32 i=0;i<rows;i++)
 			{
 				Matrix mat;
-				mat.setTranslate(0.0,((rows - 1 - i) * cubeSize) /*+ ((rows - 1 - i) * 3.0)*/,0.0);
+				mat.setTranslate(0.0,((rows - 1 - i) * cubeHeight) ,0.0);
 				TransformRefPtr theRowTranCore = Transform::create();
 				theRowTranCore->setMatrix(mat);
 				NodeRefPtr theRowTranNode = Node::create();
@@ -1341,7 +1348,7 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 					smallestCluster = i;
 				}
 				if(actual_colms==0)actual_colms++;
-				Real32 column_width = cubeSize/actual_colms *1.f;
+				
 
 				int count = 0;
 				for(UInt32 j=0;j<cols;j++)
@@ -1356,13 +1363,13 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 							
 							if(theString != "")
 							{
-								NodeRefPtr theCuboid = /*createCube(cubeSize,TutorialWindow);*/	makeBox(cubeSize/*column_width*/, cubeSize, cubeSize, 1, 1, 1);
+								NodeRefPtr theCuboid = makeBox(cubeWidth, cubeHeight, cubeHeight, 1, 1, 1);
 								dynamic_cast<Geometry*>(theCuboid->getCore())->setMaterial(createGreenMaterial());
 								//tableToNodesMap[i][theString] = theCuboid;
 								nodeDetailsTable.insert(node(i,theString,theCuboid));
 
 								Matrix mat;
-								mat.setTranslate((count * cubeSize/*column_width*/) /*+ (count * 3.0)*/,0.0,0.0);
+								mat.setTranslate((count * cubeWidth),0.0,0.0);
 								TransformRefPtr theCuboidTranCore = Transform::create();
 								theCuboidTranCore->setMatrix(mat);
 								NodeRefPtr theCuboidTranNode = Node::create();
@@ -1454,7 +1461,7 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 					pearsonDegreeSortTable.insert(pearson_degreesort_node(temp,degree,theGeometryNode));
 				}
 			}
-
+			
 			// now since the degreesort table is populated, display the nodes.
 
 			const pearson_degreesort_node_set::nth_index<1>::type& j=pearsonDegreeSortTable.get<1>();
@@ -1464,7 +1471,7 @@ void create3DScene(/*TableDomArea* const TheTableDomArea,*/
 			UInt32 widthOfRow = 0;
 
 			Matrix mat;
-			mat.setTranslate(0,0,0);//-1* cubeSize/2.f, -1* pearsonDegreeSortTable.size() * cubeSize/2.f ,-1* cubeSize/2.f);
+			mat.setTranslate(0,0,0);
 			TransformRefPtr allTranCore = Transform::create();
 			allTranCore->setMatrix(mat);
 			allTranNode = Node::create();

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="TableDomFixedHeightLayoutManager"
+	parent="TableDomLayoutManager"
+	library="ContribTableDom"
+	pointerfieldtypes="both"
+	structure="concrete"
+	systemcomponent="false"
+	parentsystemcomponent="false"
+	decoratable="false"
+	useLocalIncludes="true"
+	isNodeCore="false"
+    	authors="David Kabala"
+>
+
+A TableDomFixedHeightLayoutManager for tables
+
+
+</FieldContainer>
