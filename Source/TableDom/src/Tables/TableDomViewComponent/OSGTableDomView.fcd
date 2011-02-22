@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="TableDomView"
+	parent="FieldContainer"
+	library="ContribTableDom"
+	pointerfieldtypes="both"
+	structure="abstract"
+	systemcomponent="false"
+	parentsystemcomponent="false"
+	decoratable="false"
+	useLocalIncludes="true"
+	isNodeCore="false"
+    authors="David Kabala (djkabala@gmail.com)"
+>
+
+A UI TableDomView
+	<Field
+		name="Cell"
+		type="Cell"
+		category="pointer"
+		cardinality="single"
+		visibility="external"
+		defaultValue="NULL"
+		access="public"
+	>
+	</Field>
+
+	<Field
+		name="CellPosition"
+		type="Pnt2f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="0.0,0.0"
+		access="public"
+	>
+	</Field>
+	
+	<Field
+		name="CellWidth"
+		type="Real32"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="60.0f"
+		access="public"
+	>
+	</Field>
+	
+	<Field
+		name="CellHeight"
+		type="Real32"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="20.0f"
+		access="public"
+	>
+	</Field>
+	
+	<Field
+		name="isSelected"
+		type="bool"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="false"
+		access="public"
+	>
+	</Field>
+	
+	<Field
+		name="Font"
+		type="UIFont"
+		category="pointer"
+		cardinality="single"
+		visibility="external"
+		defaultValue="NULL"
+		access="public"
+	>
+	</Field>
+	
+	<Field
+		name="SelectionBoxColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="0.0,0.0,1.0,1.0"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="SelectionTextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		defaultValue="1.0,1.0,1.0,1.0"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="ActiveTextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="FocusedTextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="RolloverTextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="DisabledTextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="protected"
+	>
+	</Field>
+	
+	<Field
+		name="TextColor"
+		type="Color4f"
+		category="data"
+		cardinality="single"
+		visibility="external"
+		access="protected"
+	>
+	</Field>
+	
+</FieldContainer>

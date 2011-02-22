@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+
+<FieldContainer
+	name="TableDomLayoutManager"
+	parent="FieldContainer"
+	library="ContribTableDom"
+	pointerfieldtypes="both"
+	structure="abstract"
+	systemcomponent="true"
+	parentsystemcomponent="true"
+	decoratable="false"
+	useLocalIncludes="true"
+	isNodeCore="false"
+    childFields="single"
+    authors="David Kabala (djkabala@gmail.com)                             "
+>
+
+A UI TableDomLayoutManager
+
+	<Field
+		name="VisibleViews"
+		type="CellView"
+		category="pointer"
+		cardinality="multi"
+		visibility="external"
+		defaultValue="NULL"
+		access="public"
+	>
+	</Field>
+
+	<Field
+	   name="ParentTableDomArea"
+	   type="FieldContainer"
+	   cardinality="single"
+	   visibility="external"
+	   access="none"
+       doRefCount="false"
+       passFieldMask="true"
+       category="parentpointer"
+	   >
+	  The TableDomArea this TableDomLayoutManager is contained in.
+	</Field>
+</FieldContainer>
